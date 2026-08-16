@@ -1,0 +1,9 @@
+fastapi>=0.93
+uvicorn
+requests
+numpy
+opencv-python
+PyYAML
+
+# 真机相机（可选，仅 camera.mode=real 时需要）：
+# pip install pyorbbecsdk    # 版本需与 Python 版本匹配，见奥比中光官方说明

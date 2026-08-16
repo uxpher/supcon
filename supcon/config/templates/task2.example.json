@@ -1,0 +1,18 @@
+{
+  "observe_pose": {"x": 0.275, "y": -0.16, "z": 0.50, "roll": -3.141, "pitch": -1.552, "yaw": 3.141},
+  "digit_template_dir": "config/digit_templates",
+  "digit_min_score": 0.72,
+  "default_hand_grasp": [1, 1, 1, 0.5, 0.2, 0.2, 0.5, 0.2, 0.5, 0.2],
+  "sources": [
+    {"id": "source_0", "top_digit_roi": [0, 0, 100, 100], "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_1", "top_digit_roi": [100, 0, 100, 100], "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_2", "top_digit_roi": [200, 0, 100, 100], "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_3", "top_digit_roi": [300, 0, 100, 100], "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null}
+  ],
+  "table_placements": {
+    "1": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "2": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "3": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "4": {"approach_pose": null, "place_pose": null, "retreat_pose": null}
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "lamps": [
+    {"id": 0, "switch_id": 0, "cx": 200, "cy": 240, "roi_radius": 18},
+    {"id": 1, "switch_id": 1, "cx": 320, "cy": 240, "roi_radius": 18},
+    {"id": 2, "switch_id": 2, "cx": 440, "cy": 240, "roi_radius": 18}
+  ],
+  "switches": [
+    {"id": 0, "type": "button", "approach_pose": null, "press_pose": null},
+    {"id": 1, "type": "button", "approach_pose": null, "press_pose": null},
+    {"id": 2, "type": "toggle", "approach_pose": null, "flick_start_pose": null, "flick_end_pose": null}
+  ]
+}

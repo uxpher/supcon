@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""步骤4（可选）：手眼标定 AX=XB。Task1 不需要，为 Task2/3 预留。
+
+原理：T_world_camera = T_world_eef · T_eef_camera，解出固定外参 T_eef_camera。
+流程：臂依次到采集位姿 → 拍照检测 ChArUco 板 → 记录 T_base_eef 与板位姿
+     → cv2.calibrateHandEye 解 AX=XB → 存 config/runtime/calibration.json。
+
+⚠️ 注意事项：
+- 采集位姿要空间分布好、旋转变化充分（避免姿态近似平行，否则 AX=XB 退化）；
+- 解出的矩阵方向（cam2gripper vs gripper2cam）要用多点反投影验证后再用；
+- Task1 开关位姿是直接示教的，本脚本纯属为后续任务准备。
+"""
+import json
+import pathlib
+import sys
+import time
+
+import cv2
+import numpy as np
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
+
+from supcon_task2.config import PROJECT_ROOT, load_config
+from supcon_task2.robot.arm import B9Client
+from supcon_task2.utils import pose_to_matrix, setup_logging
+from supcon_task2.vision.camera import make_camera
+from supcon_task2.vision.handeye import save_calibration
+
+# 采集位姿（示例：X=0.275 平面，真机上按实际工作域修改）
+COLLECT_POSES = [
+    {"x": 0.275, "y": -0.20, "z": 0.50, "roll": -3.141, "pitch": -1.55, "yaw": 3.14},
+    {"x": 0.275, "y": -0.12, "z": 0.50, "roll": -3.141, "pitch": -1.55, "yaw": 3.14},
+    {"x": 0.275, "y": -0.20, "z": 0.44, "roll": -3.141, "pitch": -1.55, "yaw": 3.14},
+    {"x": 0.275, "y": -0.12, "z": 0.44, "roll": -3.141, "pitch": -1.55, "yaw": 3.14},
+    {"x": 0.275, "y": -0.20, "z": 0.50, "roll": -2.94, "pitch": -1.40, "yaw": 3.00},
+    {"x": 0.275, "y": -0.12, "z": 0.50, "roll": -3.30, "pitch": -1.70, "yaw": 3.20},
+    {"x": 0.275, "y": -0.16, "z": 0.52, "roll": -3.141, "pitch": -1.55, "yaw": 3.14},
+    {"x": 0.275, "y": -0.16, "z": 0.46, "roll": -3.141, "pitch": -1.55, "yaw": 3.14},
+]
+
+
+def main():
+    cfg = load_config()
+    setup_logging("INFO", None)
+    arm = B9Client(cfg.arm)
+    camera = make_camera(cfg.camera)
+
+    # ChArUco 板（5x7 格，方格 0.03m，marker 0.023m —— 按自己的标定板改）
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    board = cv2.aruco.CharucoBoard((7, 5), 0.03, 0.023, aruco_dict)
+    detector = cv2.aruco.CharucoDetector(board)
+
+    ok, why = arm.healthy()
+    if not ok:
+        sys.exit(f"机械臂电机异常: {why}")
+    arm.enable()
+
+    R_g2b, t_g2b, R_t2c, t_t2c = [], [], [], []
+    for i, pose in enumerate(COLLECT_POSES):
+        arm.goto_pose(pose, vel=0.1)
+        time.sleep(0.8)
+        rgb = camera.grab_rgb()
+        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+        charuco_corners, charuco_ids, marker_corners, marker_ids = \
+            detector.detectBoard(gray)
+        if charuco_ids is None or len(charuco_ids) < 6:
+            print(f"位姿 {i}: 未检测到板（角点 {0 if charuco_ids is None else len(charuco_ids)}），跳过")
+            continue
+        okp, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
+            charuco_corners, charuco_ids, board, camera_matrix=None, dist_coeffs=None)
+        # 无内参时 estimatePoseCharucoBoard 需要内参；真机请先填内参矩阵。
+        # 简化：此处需要自己提供 camera_matrix/dist_coeffs。
+        print(f"位姿 {i}: 检测到 {len(charuco_ids)} 角点（rvec/tvec 计算需补充内参）")
+
+        T_base_eef = pose_to_matrix(arm.pose())
+        R_g2b.append(T_base_eef[:3, :3].T)
+        t_g2b.append(-T_base_eef[:3, :3].T @ T_base_eef[:3, 3])
+        R_t2c.append(cv2.Rodrigues(rvec)[0] if okp else np.eye(3))
+        t_t2c.append(tvec.reshape(3) if okp else np.zeros(3))
+
+    if len(R_g2b) < 5:
+        sys.exit("有效位姿不足 5 个，无法可靠解 AX=XB，请调整采集位姿")
+
+    R_cam2grip, t_cam2grip = cv2.calibrateHandEye(R_g2b, t_g2b, R_t2c, t_t2c)
+    T_cam2grip = np.eye(4)
+    T_cam2grip[:3, :3] = R_cam2grip
+    T_cam2grip[:3, 3] = t_cam2grip.reshape(3)
+    # 注意方向：cv2.calibrateHandEye 返回 camera→gripper，实际常用 eef→camera = 逆
+    T_eef_camera = np.linalg.inv(T_cam2grip)
+    out = PROJECT_ROOT / "config" / "runtime" / "calibration.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    save_calibration(str(out), T_eef_camera,
+                     note="脚本生成，使用前务必多点反投影验证方向！")
+    print(f"已保存 {out}")
+    print("⚠️ 请用多点反投影验证矩阵方向（cam2gripper vs gripper2cam）后再用于定位。")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,17 @@
+{
+  "observe_pose": {"x": 0.275, "y": -0.16, "z": 0.50, "roll": -3.141, "pitch": -1.552, "yaw": 3.141},
+  "min_contour_area": 400,
+  "hand_grasps": {"block": [], "cube": [], "cylinder": [], "triangular_prism": [], "polyhedron": []},
+  "sources": [
+    {"id": "source_0", "roi": [0, 0, 100, 160], "type_override": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_1", "roi": [100, 0, 100, 160], "type_override": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_2", "roi": [200, 0, 100, 160], "type_override": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_3", "roi": [300, 0, 100, 160], "type_override": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null}
+  ],
+  "destinations": {
+    "block": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "cube": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "cylinder": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "polyhedron": {"approach_pose": null, "place_pose": null, "retreat_pose": null}
+  }
+}
