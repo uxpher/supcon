@@ -1,0 +1,17 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+.venv/
+
+# 现场标定与运行日志（supcon 内已有更细规则，这里兜底）
+supcon/config/runtime/*
+supcon/runtime/logs/
+
+# 待核验文件（现场生成，不入版本）
+supcon/check_pos/
+
+# 抓取的临时产物（PDF 文本提取、SDK 抓取文件，仅备查不进仓库）
+o10_*.txt
+o10_*.json
+决赛赛题.txt
+更新说明.txt

@@ -1,0 +1,14 @@
+### Version v0.0.42
+
+- Initial release.
+
+### Version v0.2.0
+
+- Added radian control
+- Added PD control
+- Adder Error code
+- Adder Device configuration
+
+### Version v0.2.4
+
+- Fixed several critical bugs and improved overall stability

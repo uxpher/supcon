@@ -1,0 +1,13 @@
+fastapi>=0.93
+uvicorn
+requests
+numpy
+opencv-python
+PyYAML
+
+# OCR（可选，Task2 数字 / Task3 汉字标签识别用，CPU 版）：
+paddlepaddle
+paddleocr
+
+# 真机相机（可选，仅 camera.mode=real 时需要）：
+# pip install pyorbbecsdk    # 版本需与 Python 版本匹配，见奥比中光官方说明

@@ -1,0 +1,16 @@
+{
+  "min_contour_area": 400,
+  "hand_grasps": {"block": [], "hexagonal_prism": [], "triangular_prism": [], "cylinder": []},
+  "sources": [
+    {"id": "source_0", "observe_pose": null, "roi": [0, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_1", "observe_pose": null, "roi": [100, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_2", "observe_pose": null, "roi": [200, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
+    {"id": "source_3", "observe_pose": null, "roi": [300, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null}
+  ],
+  "destinations": {
+    "block": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "hexagonal_prism": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "triangular_prism": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "cylinder": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null}
+  }
+}

@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+
+# 现场生成的标定结果与运行日志；请另行备份到部署介质。
+config/runtime/*
+!config/runtime/.gitkeep
+runtime/logs/*.log

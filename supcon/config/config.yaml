@@ -1,0 +1,106 @@
+# ============ 任务1 算法服务配置 ============
+# 路径均相对 supcon_task2/ 项目根目录。真机使用时改 base_url、位姿与手型即可。
+
+service:
+  host: 127.0.0.1          # 算法服务监听地址（竞赛软件填 http://127.0.0.1:5000）
+  port: 5000
+
+arm:
+  base_url: "http://127.0.0.1:8087"    # FTArm B9 机械臂服务地址
+  arm: "right_arm"                     # 工作区：right_arm / left_arm
+  pose_key: "right"                    # 目标位姿对象键：right / left
+  default_rpy: [-3.141, -1.552, 3.141] # 推荐固定姿态（rad，文档验证过的直线工作域姿态）
+  velocity_fast: 0.20                  # 长距离转运速度（关节限速百分比，真机建议 ≤0.3）
+  velocity_slow: 0.05                  # 下压/拨动等贴脸动作速度
+  acceleration_scaling: 0.12
+  eef_step: 0.015                      # 直线插值步长（m，越小越贴近直线）
+  action_gap_s: 0.3                    # 相邻动作间隔：每次运动到位后额外静置（s），防残余振动、给拍照留稳定时间
+  timeout: 90                          # 运动请求客户端超时（s；服务器侧 60s 上限）
+  task1_safe_pose:                     # ★ Task1 安全位（远离电气柜面板，务必真机标定后替换）
+    x: 0.275
+    y: -0.16
+    z: 0.48
+    roll: -3.141
+    pitch: -1.552
+    yaw: 3.141
+  task2_safe_pose:                     # ★ Task2 安全位（远离槽位/台面，务必真机标定后替换）
+    x: 0.275
+    y: -0.16
+    z: 0.48
+    roll: -3.141
+    pitch: -1.552
+    yaw: 3.141
+  task3_safe_pose:                     # ★ Task3 安全位（远离几何体/槽位，务必真机标定后替换）
+    x: 0.275
+    y: -0.16
+    z: 0.48
+    roll: -3.141
+    pitch: -1.552
+    yaw: 3.141
+  observe_pose:                        # ★ Task1 观察位（对面板拍照的位姿，务必真机标定后替换）
+    x: 0.275
+    y: -0.16
+    z: 0.48
+    roll: -3.141
+    pitch: -1.552
+    yaw: 3.141
+
+hand:
+  base_url: "http://127.0.0.1:8088"    # O10 灵巧手服务地址
+  # ⚠️ 0/1 张开/闭合语义官方文档存在矛盾！先跑 scripts/01_hand_semantics.py 实测，
+  #    再按实测结果修改下面三个手型（当前为候选值）。
+  open_pose: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]    # 候选"张手"（需实测）
+  close_pose: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]   # 候选"握拳"（需实测）
+  point_pose: [0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # 食指伸直按压姿态（示例，需实测）
+  torque_ma: 200                        # 限流闭合电流（mA，0-1000；任务1按压/拨动基本用不到闭合）
+  verify:                               # 抓取验证参数（Task2/3 用，先保留）
+    timeout_s: 3.0
+    settle_frames: 3
+    moved_tol: 0.02
+    near_full_tol: 0.05
+    poll_interval: 0.05
+
+camera:
+  mode: "file"                          # file=本地图片 / real=真机 Orbbec SDK / mock=模拟面板图
+  color_file: "config/runtime/panel_capture.png"  # file 模式读这张图（03 脚本会生成）
+  depth_file: ""                        # 任务1 不需要深度，留空
+  intrinsics_file: ""                   # 可选：内参 json {"fx":..,"fy":..,"cx":..,"cy":..}
+  width: 640
+  height: 480
+
+task1:
+  panel_file: "config/runtime/panel.json" # ★ 面板标定文件（03 生成灯位，02 填开关位姿）
+  approach_vel: 0.15                    # 去观察位/开关上方速度
+  fine_vel: 0.05                        # 下压/拨动速度（慢=稳=安全）
+  press_dwell_s: 0.3                    # 按压停留时间
+  max_retry: 1                          # 亮灯检测失败重试次数
+  lamp_margin: 15.0                     # 亮灯 ROI 亮度需超过次亮 ROI 的最小差值（0-255）
+  lamp_abs_min: 60.0                    # 亮灯 ROI 亮度绝对下限（0-255）
+  roi_radius: 18                        # 灯 ROI 半径（像素）
+  preview_first_move: true              # 首段运动先 plan_only 预览（示教位姿已在 02 脚本校验过）
+  confirm_frames: 3                     # 连续相同检测结果才认定亮灯
+  frame_interval_s: 0.12
+  action_verify: "motion_only"          # 现场确认灯会变化后可改为 lamp_change
+  action_change_min: 12.0
+
+task2:
+  scene_file: "config/runtime/task2.json" # 由现场标定生成，参考 templates/task2.example.json
+  observe_vel: 0.15
+  fine_vel: 0.05
+  preflight: true
+
+task3:
+  scene_file: "config/runtime/task3.json" # 由现场标定生成，参考 templates/task3.example.json
+  observe_vel: 0.15
+  fine_vel: 0.05
+  preflight: true
+
+safety:
+  poll_interval_s: 0.3                  # 后台安全监控轮询间隔
+  disable_arm_on_emergency: false       # 紧急情况是否失能机械臂（⚠️ 会掉臂！默认只报警不动作）
+  effort_guard_enabled: false           # 力矩绝对值上限急停（默认关；需现场标定阈值后再开）
+  effort_guard_threshold: 10.0          # 力矩绝对值上限（Nm，任一关节 |effort| 超过此值触发急停）
+
+logging:
+  level: "INFO"
+  file: "runtime/logs/service.log"
