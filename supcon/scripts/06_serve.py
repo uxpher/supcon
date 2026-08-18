@@ -15,9 +15,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 import uvicorn
 
-from supcon_task2.config import load_config
-from supcon_task2.service import create_app
-from supcon_task2.utils import setup_logging
+from supcon.config import load_config
+from supcon.service import create_app
+from supcon.utils import setup_logging
 
 
 def main():

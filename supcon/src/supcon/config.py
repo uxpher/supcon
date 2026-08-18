@@ -61,6 +61,7 @@ DEFAULTS: dict = {
         "lamp_margin": 15.0,
         "lamp_abs_min": 60.0,
         "roi_radius": 18,
+        "diff_max_dist": 80.0,
         "preview_first_move": True,
         "confirm_frames": 3,
         "frame_interval_s": 0.12,
@@ -81,6 +82,11 @@ DEFAULTS: dict = {
     },
     "safety": {"poll_interval_s": 0.3, "disable_arm_on_emergency": False,
                "effort_guard_enabled": False, "effort_guard_threshold": 10.0},
+    "debug": {
+        "dump_enabled": False,       # 任务执行时是否把相机帧/深度可视化图落盘（调试用）
+        "dump_dir": "runtime/debug",  # task1/2/3 的 RGB 落盘根目录（下分 color/ocr/shape）
+        "depth_vis_dir": "img_vis",   # task3 深度可视化图目录（→ supcon/img_vis/）
+    },
     "logging": {"level": "INFO", "file": "runtime/logs/service.log"},
 }
 
@@ -170,6 +176,7 @@ class Task1Config:
     lamp_margin: float = 15.0
     lamp_abs_min: float = 60.0
     roi_radius: int = 18
+    diff_max_dist: float = 80.0
     preview_first_move: bool = True
     confirm_frames: int = 3
     frame_interval_s: float = 0.12
@@ -202,6 +209,13 @@ class SafetyConfig:
 
 
 @dataclass
+class DebugConfig:
+    dump_enabled: bool = False
+    dump_dir: str = "runtime/debug"
+    depth_vis_dir: str = "img_vis"
+
+
+@dataclass
 class AppConfig:
     service: ServiceConfig = field(default_factory=ServiceConfig)
     arm: ArmConfig = field(default_factory=ArmConfig)
@@ -211,6 +225,7 @@ class AppConfig:
     task2: Task2Config = field(default_factory=Task2Config)
     task3: Task3Config = field(default_factory=Task3Config)
     safety: SafetyConfig = field(default_factory=SafetyConfig)
+    debug: DebugConfig = field(default_factory=DebugConfig)
     logging: dict = field(default_factory=lambda: {"level": "INFO", "file": "runtime/logs/service.log"})
 
     def resolve(self, rel_path: str) -> str:
@@ -244,5 +259,6 @@ def load_config(path: str | None = None) -> AppConfig:
         task2=_obj(Task2Config, merged["task2"]),
         task3=_obj(Task3Config, merged["task3"]),
         safety=_obj(SafetyConfig, merged["safety"]),
+        debug=_obj(DebugConfig, merged["debug"]),
         logging=dict(merged["logging"]),
     )

@@ -21,7 +21,7 @@ class ArmError(RuntimeError):
 
 class B9Client:
     def __init__(self, cfg):
-        """cfg: supcon_task2.config.ArmConfig"""
+        """cfg: supcon.config.ArmConfig"""
         self.cfg = cfg
         self.base = cfg.base_url.rstrip("/")
 

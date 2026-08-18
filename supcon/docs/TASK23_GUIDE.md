@@ -40,29 +40,31 @@ python scripts/09_record_arm_pose.py --task 3 --key observe_pose
 规则基线：数字仅在顶面；必须按 `1 → 2 → 3 → 4` 顺序抓取；将物体放至指定台面，并复现其初始竖直姿态。
 
 1. 复制模板：`mkdir -p config/runtime && cp config/templates/task2.example.json config/runtime/task2.json`。
-2. 在观察位拍摄面向四个源槽位的顶视图，填写每个 `top_digit_roi`。
-3. 以赛场相机、赛场光照采集顶面数字模板，存为 `config/digit_templates/1.png` 至 `4.png`。
-4. 示教每个源槽位的抓取三段位姿（`10` 脚本，`--source 0..3`）：
-
+2. 数字识别用**整图 OCR**：在观察位拍一张顶视图，OCR 按文本框 x 坐标左→右读出 4 个数字，依次对应方位 `left → midleft → midright → right`。**无需 ROI、无需数字模板**。
+3. 录制 Task2 长方体抓取手型（4 块同尺寸，独立于 Task3）：
    ```bash
-   python scripts/10_record_scene_pose.py --task 2 --source 0 --key approach_pose   # 接近位（正上方）
-   python scripts/10_record_scene_pose.py --task 2 --source 0 --key grasp_tcp_pose  # 抓取位（下降贴住）
-   python scripts/10_record_scene_pose.py --task 2 --source 0 --key lift_pose       # 抬升位（抓后抬起）
-   # source 1/2/3 同理
+   python scripts/08_record_hand_pose.py --set 0.5,0.5,0.5,1,0,0,0,0,0,0   # 试摆
+   python scripts/08_record_hand_pose.py --record-task2-grasp              # 记录
+   python scripts/08_record_hand_pose.py --apply-task2-grasp               # 回放校验
+   # 审核后填入 task2.json 的 default_hand_grasp
    ```
-
+4. 示教每个源槽位的抓取三段位姿（`10` 脚本，`--source left/midleft/midright/right`）：
+   ```bash
+   python scripts/10_record_scene_pose.py --task 2 --source left --key approach_pose   # 接近位（正上方）
+   python scripts/10_record_scene_pose.py --task 2 --source left --key grasp_tcp_pose  # 抓取位（下降贴住）
+   python scripts/10_record_scene_pose.py --task 2 --source left --key lift_pose       # 抬升位（抓后抬起）
+   # midleft / midright / right 同理
+   ```
 5. 示教台面放置位（`10` 脚本，数字 `1~4` 各三段）：
-
    ```bash
    python scripts/10_record_scene_pose.py --task 2 --dest 1 --key approach_pose
    python scripts/10_record_scene_pose.py --task 2 --dest 1 --key place_pose
    python scripts/10_record_scene_pose.py --task 2 --dest 1 --key retreat_pose
    # dest 2/3/4 同理；位置必须都在指定台面内，RPY 与初始物块姿态一致
    ```
-
 6. 校验：`python scripts/07_validate_scene.py --task 2 --plan-only`；任何 OMPL 回退或不可达都必须重新示教。
 
-Task2 的 OCR 仅在观察位读取顶面。出现数字缺失、重复或低置信度时，任务会停止并退回安全位，不会猜测顺序。
+Task2 仅在观察位读一次整图 OCR。若 OCR 未能读出恰好 `{1,2,3,4}` 四个数字，任务停止并退回安全位，不会猜测顺序。
 
 ## Task3：竖直几何体分拣
 
@@ -112,4 +114,4 @@ Task3 按更新后的竖直摆放规则实现，**不执行旧方案中的空中
 - 相机像素格式、画面方向、ROI 和赛场光照已复核。
 - 所有示教位姿均通过 `plan_only`，且正式执行不会出现 `OMPL`。
 - 所有 `check_pos/` 待核验文件已审核并填入正式配置（`config.yaml` / `task2.json` / `task3.json`）。
-- Task1 的 `config/runtime/panel.json`、Task2 的 `config/runtime/task2.json`、Task3 的 `config/runtime/task3.json` 和数字模板均已随部署包备份。
+- Task1 的 `config/runtime/panel.json`、Task2 的 `config/runtime/task2.json`、Task3 的 `config/runtime/task3.json` 均已随部署包备份。

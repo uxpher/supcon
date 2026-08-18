@@ -7,6 +7,7 @@ import os
 
 from ..robot.arm import ArmError
 from ..robot.hand import HandError
+from ..vision.dump import DebugDump
 
 log = logging.getLogger("tasks.common")
 
@@ -24,6 +25,7 @@ class PickPlaceRunner:
         self.task_cfg = task_cfg
         self.safe_pose = safe_pose or cfg.arm.task1_safe_pose
         self.lift_z = None   # 撤离抬升高度；任务 run 里设为观察位 z（高于物体）
+        self.dump = DebugDump(cfg)
 
     def check(self) -> None:
         if self.safety is not None:

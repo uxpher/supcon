@@ -108,12 +108,23 @@ class OrbbecCamera(Camera):
                 "（版本需与 Python 匹配，见奥比中光官方说明）") from e
         self._pipeline = Pipeline()
         config = Config()
-        profiles = self._pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR)
-        self._profile = profiles.get_default_video_stream_profile()
+        # 彩色流
+        color_profiles = self._pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR)
+        self._profile = color_profiles.get_default_video_stream_profile()
         config.enable_stream(self._profile)
+        # 深度流（Gemini335 是 RGB-D：双目结构光 + 红外）
+        try:
+            depth_profiles = self._pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR)
+            self._depth_profile = depth_profiles.get_default_video_stream_profile()
+            config.enable_stream(self._depth_profile)
+            self._has_depth = True
+        except Exception as e:
+            self._depth_profile = None
+            self._has_depth = False
+            log.warning("深度流启动失败（将无深度数据）: %s", e)
         self._pipeline.start(config)
         self.intrinsics = self._read_intrinsics()
-        log.info("Gemini 335 彩色流已启动，内参=%s", self.intrinsics)
+        log.info("Gemini 335 彩色流已启动，深度流=%s，内参=%s", self._has_depth, self.intrinsics)
 
     def _read_intrinsics(self) -> dict | None:
         try:
@@ -153,6 +164,27 @@ class OrbbecCamera(Camera):
         if "RGB" not in fmt:
             log.warning("未识别的彩色像素格式 %s，按 RGB 解释；须现场核对", fmt)
         return image
+
+    def grab_depth(self) -> np.ndarray | None:
+        """深度图（float32，米）。深度流未启动时返回 None。"""
+        if not self._has_depth:
+            return None
+        frames = self._pipeline.wait_for_frames(2000)
+        if frames is None:
+            return None
+        df = frames.get_depth_frame()
+        if df is None:
+            return None
+        w, h = df.get_width(), df.get_height()
+        data = np.frombuffer(df.get_data(), dtype=np.uint16)
+        depth_mm = data.reshape((h, w)).astype(np.float32)
+        try:
+            scale = float(df.get_depth_scale())  # 米/计数
+        except Exception:
+            scale = 0.001  # 默认 mm
+        depth_m = depth_mm * scale
+        depth_m[depth_m <= 0] = 0.0  # 无效深度置 0
+        return depth_m
 
     def close(self) -> None:
         try:

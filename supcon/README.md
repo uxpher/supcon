@@ -7,7 +7,7 @@
 ## 快速开始
 
 ```bash
-cd supcon_task2
+cd supcon
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
@@ -27,7 +27,7 @@ curl -X POST http://127.0.0.1:5000/api/task1/execute
 ## 目录结构
 
 ```
-supcon_task2/
+supcon/
 ├── config/                  # 配置、模板与现场标定文件
 │   ├── config.yaml          # ★ 所有可调参数
 │   ├── templates/           # 可提交的 Task1/2/3 标定模板
@@ -36,21 +36,24 @@ supcon_task2/
 ├── mocks/                   # 模拟机械臂 / 灵巧手（无硬件开发用）
 ├── runtime/logs/            # 运行日志
 ├── scripts/                 # 上机操作脚本（标定/示教/自测/启动）
-├── src/supcon_task2/        # Python 包（算法服务核心）
+├── src/supcon/              # Python 包（算法服务核心）
 │   ├── config.py            # 配置加载（默认值 + YAML 覆盖）
 │   ├── utils.py             # 日志、姿态矩阵工具
 │   ├── robot/               # 臂 / 手 / 安全监控客户端
 │   ├── vision/              # 相机、亮灯、数字、形状与手眼标定
 │   ├── tasks/               # Task1 拨按、Task2 顶面数字、Task3 竖直分拣
 │   └── service.py           # FastAPI 服务（对接竞赛软件）
+├── test_utils/              # 视觉算法离线测试（test_color/test_ocr/test_shape）
 ├── tests/                   # 单测 + 离线冒烟
 └── requirements.txt
 ```
 
 ## 核心设计（为什么这样做）
 
-1. **Task1 视觉只回答「哪盏灯亮」**：面板固定，3 盏灯在图像中的位置预先标定（`panel.json`），运行时用多帧 ROI 亮度增量判定，不需要训练模型。
-2. **动作位置全靠示教**：开关的「按压/拨动」位姿在真机上用网页控制面板拖动 + `scripts/02_record_pose.py` 记录。**Task1 不需要手眼标定**，把 3D 坐标转换问题彻底绕开（新手最稳路线）。
-3. **先预览后执行、全程直线**：每个位姿 `plan_only` 校验可达性，执行后检查 message 是否含 `OMPL`（回退非直线 = 危险）。
-4. **安全兜底**：后台监控线程持续查臂电机故障与手过流，任何异常立即停止后续动作。
-5. **离线可开发**：mock 臂/手 + 模拟相机，全流程可以零硬件跑通后再上机。
+1. **Task1 视觉只回答「哪盏灯亮」**：面板固定，3 盏灯在图像中的位置预先标定（`panel.json`）。白底面板用**做差标定**（`03_calibrate_panel.py --mode diff`：全灭基准帧 + 亮灯帧做差聚出 3 个灯位，并写入 ROI 亮度基线），运行时用「ROI 亮度 − 基线」增量判定，不需要模型、不需要手眼标定。
+2. **动作位置全靠示教**：开关的「按压/拨动」位姿在真机上用网页控制面板拖动 + `scripts/02_record_pose.py` 记录；Task2/3 的抓放位姿用 `scripts/08/09/10_record_*.py` 记录到 `check_pos/` 待核验后手动填入 JSON。视觉不参与 3D 坐标计算，把新手最易翻车的坐标变换绕开。
+3. **Task2 整图 OCR**：观察位拍一张顶视图整图送入 PaddleOCR，按文本框 x 坐标左→右读出 4 个数字，依次映射到 `left/midleft/midright/right`，再严格按 `1→2→3→4` 抓取放置（无需 ROI/数字模板）。
+4. **Task3 形状分拣**：`type_override → OCR 汉字标签 → 轮廓分类` 三级识别；8 个观察位（抓取端 4 + 放置端 4）逐个正上方拍照，竖直抓放、不做空中翻转。
+5. **先预览后执行、全程直线**：每个位姿 `plan_only` 校验可达性，执行后检查 message 是否含 `OMPL`（回退非直线 = 危险）。
+6. **安全兜底**：后台监控线程持续查臂电机故障与手过流，任何异常立即停止后续动作；可选力矩绝对值上限急停（`--effort-guard`）。
+7. **离线可开发**：mock 臂/手 + 模拟相机，全流程可以零硬件跑通后再上机；`debug.dump_enabled` 可把任务执行时相机帧/深度图落盘到 `runtime/debug/` 与 `img_vis/` 排查。

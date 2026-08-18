@@ -1,5 +1,5 @@
 # ============ 任务1 算法服务配置 ============
-# 路径均相对 supcon_task2/ 项目根目录。真机使用时改 base_url、位姿与手型即可。
+# 路径均相对 supcon/ 项目根目录。真机使用时改 base_url、位姿与手型即可。
 
 service:
   host: 127.0.0.1          # 算法服务监听地址（竞赛软件填 http://127.0.0.1:5000）
@@ -74,9 +74,10 @@ task1:
   fine_vel: 0.05                        # 下压/拨动速度（慢=稳=安全）
   press_dwell_s: 0.3                    # 按压停留时间
   max_retry: 1                          # 亮灯检测失败重试次数
-  lamp_margin: 15.0                     # 亮灯 ROI 亮度需超过次亮 ROI 的最小差值（0-255）
+  lamp_margin: 5.0                     # 亮灯 ROI 亮度需超过次亮 ROI 的最小差值（0-255）
   lamp_abs_min: 60.0                    # 亮灯 ROI 亮度绝对下限（0-255）
   roi_radius: 18                        # 灯 ROI 半径（像素）
+  diff_max_dist: 250.0                   # 最大判定误差：做差判定时亮斑到灯位中心的最大允许距离（px）
   preview_first_move: true              # 首段运动先 plan_only 预览（示教位姿已在 02 脚本校验过）
   confirm_frames: 3                     # 连续相同检测结果才认定亮灯
   frame_interval_s: 0.12
@@ -100,6 +101,11 @@ safety:
   disable_arm_on_emergency: false       # 紧急情况是否失能机械臂（⚠️ 会掉臂！默认只报警不动作）
   effort_guard_enabled: false           # 力矩绝对值上限急停（默认关；需现场标定阈值后再开）
   effort_guard_threshold: 10.0          # 力矩绝对值上限（Nm，任一关节 |effort| 超过此值触发急停）
+
+debug:
+  dump_enabled: false                   # ★ 任务执行时落盘相机帧（排查用）；正式赛建议 false 减开销
+  dump_dir: "runtime/debug"             # task1→color/ task2→ocr/ task3→shape/ 的根目录
+  depth_vis_dir: "img_vis"              # task3 深度可视化伪彩图目录（→ supcon/img_vis/）
 
 logging:
   level: "INFO"

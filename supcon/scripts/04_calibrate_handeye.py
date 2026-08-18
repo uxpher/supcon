@@ -20,11 +20,11 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from supcon_task2.config import PROJECT_ROOT, load_config
-from supcon_task2.robot.arm import B9Client
-from supcon_task2.utils import pose_to_matrix, setup_logging
-from supcon_task2.vision.camera import make_camera
-from supcon_task2.vision.handeye import save_calibration
+from supcon.config import PROJECT_ROOT, load_config
+from supcon.robot.arm import B9Client
+from supcon.utils import pose_to_matrix, setup_logging
+from supcon.vision.camera import make_camera
+from supcon.vision.handeye import save_calibration
 
 # 采集位姿（示例：X=0.275 平面，真机上按实际工作域修改）
 COLLECT_POSES = [

@@ -14,9 +14,9 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from supcon_task2.config import load_config
-from supcon_task2.robot.arm import B9Client
-from supcon_task2.tasks.common import load_scene
+from supcon.config import load_config
+from supcon.robot.arm import B9Client
+from supcon.tasks.common import load_scene
 
 
 def required(data: dict, keys: tuple[str, ...], label: str) -> list[dict]:
@@ -40,18 +40,22 @@ def main() -> None:
     # 观察位：Task2 全局 1 个；Task3 每个源工位 + 每个目标槽各 1 个（无全局观察位）
     if args.task == "2":
         poses.extend(required(scene, ("observe_pose",), "scene"))
-    sources = scene.get("sources") or []
-    if len(sources) != 4:
+    sources_raw = scene.get("sources") or {}
+    if isinstance(sources_raw, dict):
+        # Task2：方位名 → source
+        source_items = list(sources_raw.items())
+    else:
+        # Task3：列表
+        source_items = [(f"source_{i}", s) for i, s in enumerate(sources_raw)]
+    if len(source_items) != 4:
         raise SystemExit("sources 必须恰好为 4 个")
-    for source in sources:
+    for name, source in source_items:
         src_keys = ["approach_pose", "grasp_tcp_pose", "lift_pose"]
         if args.task == "3":
             src_keys = ["observe_pose"] + src_keys   # Task3 源工位自带观察位
-        poses.extend(required(source, tuple(src_keys), f"source {source.get('id')}"))
-        if args.task == "2" and len(source.get("top_digit_roi") or []) != 4:
-            raise SystemExit(f"source {source.get('id')} 的 top_digit_roi 必须是 [x,y,w,h]")
+        poses.extend(required(source, tuple(src_keys), f"source {name}"))
         if args.task == "3" and len(source.get("roi") or []) != 4:
-            raise SystemExit(f"source {source.get('id')} 的 roi 必须是 [x,y,w,h]")
+            raise SystemExit(f"source {name} 的 roi 必须是 [x,y,w,h]")
     destinations = scene.get("table_placements" if args.task == "2" else "destinations") or {}
     if len(destinations) != 4:
         raise SystemExit("必须配置 4 个目标放置位/槽位")

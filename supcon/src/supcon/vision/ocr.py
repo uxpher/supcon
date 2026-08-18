@@ -63,7 +63,7 @@ class OcrRecognizer:
             log.warning("PaddleOCR 不可用，将 fallback 到传统算法: %s", e)
 
     def recognize(self, image) -> list[tuple[str, float]]:
-        """返回 [(text, confidence), ...]，按置信度降序；失败返回空列表。"""
+        """返回 [(text, confidence), ...]，按文本框 x 坐标从左到右排序；失败返回空列表。"""
         if not self.available:
             return []
         try:
@@ -73,22 +73,24 @@ class OcrRecognizer:
         except Exception as e:  # noqa: BLE001
             log.warning("OCR 识别失败: %s", e)
             return []
-        items: list[tuple[str, float]] = []
+        items: list[tuple[str, float, float]] = []
         if not result:
-            return items
+            return []
         for page in result:
             if not page:
                 continue
             for line in page:
                 if len(line) < 2:
                     continue
+                box = line[0]  # 文本框四角点 [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
                 text, score = line[1][0], float(line[1][1])
-                items.append((text, score))
-        items.sort(key=lambda x: x[1], reverse=True)
-        return items
+                x_min = min(float(pt[0]) for pt in box)
+                items.append((text, score, x_min))
+        items.sort(key=lambda x: x[2])  # 按 x 坐标左→右
+        return [(t, s) for t, s, _ in items]
 
     def recognize_digit(self, image) -> tuple[int, float] | None:
-        """识别单个数字 1-4（Task2）。返回 (digit, score) 或 None。"""
+        """识别单个数字 1-4（Task2 单 ROI）。返回 (digit, score) 或 None。"""
         for text, conf in self.recognize(image):
             for ch in text:
                 if ch.isdigit() and 1 <= int(ch) <= 4:
@@ -97,6 +99,19 @@ class OcrRecognizer:
                 if ch in text:
                     return d, conf
         return None
+
+    def recognize_digits(self, image) -> list[int]:
+        """识别所有 1-4 数字，按文本框 x 坐标从左到右返回（去重保持顺序）。"""
+        seen: list[int] = []
+        for text, _ in self.recognize(image):
+            # 整图 OCR 时相邻数字可能被合并进同一文本框，逐字符提取全部 1-4
+            for ch in text:
+                if ch.isdigit() and 1 <= int(ch) <= 4 and int(ch) not in seen:
+                    seen.append(int(ch))
+            for cn, d in DIGIT_CN.items():
+                if cn in text and d not in seen:
+                    seen.append(d)
+        return seen
 
     def recognize_shape_label(self, image) -> tuple[str, float] | None:
         """识别汉字形状标签（Task3）。返回 (shape_key, score) 或 None。"""

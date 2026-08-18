@@ -23,6 +23,7 @@ import time
 
 from ..robot.arm import ArmError
 from ..robot.hand import HandError
+from ..vision.dump import DebugDump
 from ..vision.lamp import LampDetector
 
 log = logging.getLogger("task1")
@@ -46,6 +47,7 @@ class Task1Runner:
         self.camera = camera
         self.safety = safety
         self.detector = LampDetector(cfg.task1)
+        self.dump = DebugDump(cfg)
         self.panel = None
         self.switch_id = None
 
@@ -105,6 +107,7 @@ class Task1Runner:
         for attempt in range(self.cfg.task1.max_retry + 1):
             for _ in range(self.cfg.task1.confirm_frames):
                 rgb = self.camera.grab_rgb()
+                self.dump.rgb(rgb, "color", "observe")
                 idx = self.detector.detect_lit_index(
                     rgb, panel["lamps"], baseline=panel.get("baseline_scores"))
                 if idx is not None and idx == result:

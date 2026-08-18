@@ -47,7 +47,7 @@ class HandError(RuntimeError):
 
 class O10Client:
     def __init__(self, cfg):
-        """cfg: supcon_task2.config.HandConfig"""
+        """cfg: supcon.config.HandConfig"""
         self.cfg = cfg
         self.base = cfg.base_url.rstrip("/")
 

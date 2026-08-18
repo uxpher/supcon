@@ -15,7 +15,7 @@
 ## 1. 环境准备
 
 ```bash
-cd supcon_task2
+cd supcon
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 # 真机相机还需：pip install pyorbbecsdk（版本与 Python 匹配）
@@ -52,10 +52,24 @@ python scripts/01_hand_semantics.py
    （提示：观察位尽量让相机正对面板；安全位放在直线安全工作域内，Y∈[-0.28,-0.04]、Z∈[0.44,0.52] 那类区域，可参考文档验证过的固定姿态 roll=-3.141/pitch=-1.552/yaw=3.141。）
 
 ### 3.4 面板灯位标定（panel.json → lamps）
+
+**白底面板推荐做差法**（背景板是白色时，旧 `--mode auto` 会失败）：
+
+```bash
+# 先拍一张三灯全灭基准帧 origin.png（相机固定、同分辨率、锁曝光）
+# 再拍若干亮灯帧（覆盖左/中/右各灯至少一次）
+python scripts/03_calibrate_panel.py --mode diff --origin origin.png --lit 亮灯帧目录
+```
+
+做差法会自动聚出 3 个灯位（左→右）并写入 ROI 亮度基线，**不依赖灯位等距**。
+
+兜底方案（手动，最稳）：
+
 ```bash
 python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右点 3 盏灯中心
 ```
-（`--mode auto` 需要在 3 盏灯都亮/足够亮时用；摄像头模式由 `camera.mode` 决定，真机改 `real`。）
+
+（`--mode auto` 仅适用深色背景；摄像头模式由 `camera.mode` 决定，真机改 `real`。）
 
 ### 3.5 开关位姿示教（panel.json → switches）★ 核心工作量
 对每个开关（预设：开关 0、2 是按钮，开关 1 是中间拨杆）：
@@ -81,13 +95,13 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 
 ### 3.5.1 三灯熄灭基线（推荐）
 
-完成灯位标定后，在三盏灯均熄灭、相机位姿固定时运行：
+做差标定（`--mode diff`）已经顺手把 ROI 基线写入 `panel.json`。若用 manual 模式标了灯位，可再在三盏灯均熄灭、相机位姿固定时单独补基线：
 
 ```bash
 python scripts/03_calibrate_panel.py --save-baseline
 ```
 
-脚本会将 ROI 基线写入 `panel.json`。运行时按“当前亮度 - 基线”判定，可降低不同颜色灯、环境反光和自动曝光造成的误判。
+运行时按“当前亮度 - 基线”判定，可降低不同颜色灯、环境反光和自动曝光造成的误判。
 
 ### 3.6 干跑自测（不经过竞赛软件）
 ```bash
@@ -109,7 +123,8 @@ python scripts/06_serve.py
 | 参数 | 含义 | 调优建议 |
 | --- | --- | --- |
 | `task1.lamp_margin` | 亮灯须超过次亮的最小亮度差 | 检测不出亮灯→调小；误判→调大 |
-| `task1.lamp_abs_min` | 亮度绝对下限 | 环境暗→调小 |
+| `task1.lamp_abs_min` | 亮度增量绝对下限 | 环境暗→调小 |
+| `task1.diff_max_dist` | 做差判定：亮斑到灯位中心的最大允许距离(px) | 灯位有漂移→调大；误匹配→调小 |
 | `task1.fine_vel` | 下压/拨动速度 | 先 0.05，稳了再逐步提 |
 | `task1.press_dwell_s` | 按压停留 | 按钮行程长→加大 |
 | `arm.velocity_fast/slow` | 转运/贴脸速度 | 真机 ≤0.3，长距离可 0.25~0.3 |

@@ -16,12 +16,12 @@ sys.path.insert(0, str(ROOT))
 
 from mocks.mock_arm import MockArmServer
 from mocks.mock_hand import MockHandServer
-from supcon_task2.config import load_config
-from supcon_task2.robot.arm import B9Client
-from supcon_task2.robot.hand import O10Client
-from supcon_task2.tasks.task1 import Task1Runner
-from supcon_task2.utils import setup_logging
-from supcon_task2.vision.camera import MockCamera
+from supcon.config import load_config
+from supcon.robot.arm import B9Client
+from supcon.robot.hand import O10Client
+from supcon.tasks.task1 import Task1Runner
+from supcon.utils import setup_logging
+from supcon.vision.camera import MockCamera
 
 
 def main():

@@ -28,10 +28,10 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from supcon_task2.config import load_config
-from supcon_task2.robot.arm import ArmError, B9Client
-from supcon_task2.tasks.task1 import load_panel
-from supcon_task2.utils import setup_logging
+from supcon.config import load_config
+from supcon.robot.arm import ArmError, B9Client
+from supcon.tasks.task1 import load_panel
+from supcon.utils import setup_logging
 
 POSE_KEYS = ("approach_pose", "press_pose", "flick_start_pose", "flick_end_pose")
 

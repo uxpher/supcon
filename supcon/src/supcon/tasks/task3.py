@@ -77,6 +77,11 @@ class Task3Runner(PickPlaceRunner):
                 self.move(source["observe_pose"], f"源工位 {source.get('id')} 观察位",
                           self.task_cfg.observe_vel)
                 rgb = self.camera.grab_rgb()
+                self.dump.rgb(rgb, "shape", f"src{source.get('id')}")
+                # 深度矩阵在内存中处理（grab_depth → H×W float32 米），并把伪彩图落盘排查。
+                depth = self.camera.grab_depth()
+                if depth is not None:
+                    self.dump.depth_vis(depth, f"src{source.get('id')}")
                 shape, confidence, method = self._classify_source(
                     rgb, source, ocr, shape_recognizer)
                 if shape in used_types:

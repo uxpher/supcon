@@ -5,8 +5,10 @@
 （安全位/观察位由 09_record_arm_pose.py 记录，本脚本只管「抓取/放置」动作位。）
 
 待核验文件字段：
-  sources.N.approach_pose / grasp_tcp_pose / lift_pose   ← 第 N 个源工位三段
-  table_placements（Task2 数字 1-4）/ destinations（Task3 形状名）.approach_pose / place_pose / retreat_pose ← 目标三段
+  Task2 sources.{left|midleft|midright|right}.approach_pose / grasp_tcp_pose / lift_pose   ← 源槽位三段（观察位走全局 observe_pose）
+  Task2 table_placements.{1|2|3|4}.approach_pose / place_pose / retreat_pose               ← 台面放置三段
+  Task3 sources.{0|1|2|3}.observe_pose / approach_pose / grasp_tcp_pose / lift_pose        ← 源工位四段
+  Task3 destinations.{形状}.observe_pose / approach_pose / place_pose / retreat_pose        ← 目标槽四段
 
 摆位方式：网页面板/teach_mode 手动摆到位 → 记录。
 
@@ -27,17 +29,35 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from supcon_task2.config import load_config
-from supcon_task2.robot.arm import B9Client
-from supcon_task2.utils import setup_logging
-
-SOURCE_KEYS = ("observe_pose", "approach_pose", "grasp_tcp_pose", "lift_pose")
-DEST_KEYS = ("observe_pose", "approach_pose", "place_pose", "retreat_pose")
+from supcon.config import load_config
+from supcon.robot.arm import B9Client
+from supcon.utils import setup_logging
 
 SCENE_FILES = {"2": "check_pos/Task2_场景位姿_待核验.json",
                "3": "check_pos/Task3_场景位姿_待核验.json"}
 TASK2_DEST_NAMES = ("1", "2", "3", "4")
 TASK3_DEST_NAMES = ("block", "hexagonal_prism", "triangular_prism", "cylinder")
+# Task2 源槽位按方位名；Task3 源工位按编号
+TASK2_SOURCE_NAMES = ("left", "midleft", "midright", "right")
+TASK3_SOURCE_NAMES = ("0", "1", "2", "3")
+
+
+def _source_names(task: str) -> tuple:
+    return TASK2_SOURCE_NAMES if task == "2" else TASK3_SOURCE_NAMES
+
+
+def _source_keys(task: str) -> tuple:
+    """源工位需示教的动作位。Task2 用全局观察位，源工位不含 observe_pose。"""
+    if task == "2":
+        return ("approach_pose", "grasp_tcp_pose", "lift_pose")
+    return ("observe_pose", "approach_pose", "grasp_tcp_pose", "lift_pose")
+
+
+def _dest_keys(task: str) -> tuple:
+    """目标放置位需示教的动作位。Task2 台面放置位不含 observe_pose。"""
+    if task == "2":
+        return ("approach_pose", "place_pose", "retreat_pose")
+    return ("observe_pose", "approach_pose", "place_pose", "retreat_pose")
 
 
 def _empty(task: str) -> dict:
@@ -50,8 +70,8 @@ def _empty(task: str) -> dict:
             f"{dest_key}.*=目标放置位（approach_pose / place_pose / retreat_pose）。"
             f"审核后手动填入 task{task}.json。本文件不改动任何正式配置。"
         ),
-        "sources": {str(i): {k: None for k in SOURCE_KEYS} for i in range(4)},
-        dest_key: {n: {k: None for k in DEST_KEYS} for n in dest_names},
+        "sources": {n: {k: None for k in _source_keys(task)} for n in _source_names(task)},
+        dest_key: {n: {k: None for k in _dest_keys(task)} for n in dest_names},
     }
 
 
@@ -62,10 +82,10 @@ def _load(path: str, task: str) -> dict:
     else:
         data = _empty(task)
     data.setdefault("_comment", _empty(task)["_comment"])
-    data.setdefault("sources", {str(i): {k: None for k in SOURCE_KEYS} for i in range(4)})
+    data.setdefault("sources", {n: {k: None for k in _source_keys(task)} for n in _source_names(task)})
     dest_key = "table_placements" if task == "2" else "destinations"
     dest_names = TASK2_DEST_NAMES if task == "2" else TASK3_DEST_NAMES
-    data.setdefault(dest_key, {n: {k: None for k in DEST_KEYS} for n in dest_names})
+    data.setdefault(dest_key, {n: {k: None for k in _dest_keys(task)} for n in dest_names})
     return data
 
 
@@ -92,8 +112,8 @@ def main():
     ap = argparse.ArgumentParser(description="Task2/3 场景动作位记录（只写待核验文件）")
     ap.add_argument("--task", choices=("2", "3"), required=True)
     ap.add_argument("--where", action="store_true", help="打印当前末端位姿")
-    ap.add_argument("--key", help="approach_pose / grasp_tcp_pose / lift_pose / place_pose / retreat_pose")
-    ap.add_argument("--source", type=int, help="源工位/槽位编号 0..3")
+    ap.add_argument("--key", help="observe_pose(仅Task3) / approach_pose / grasp_tcp_pose / lift_pose / place_pose / retreat_pose")
+    ap.add_argument("--source", type=str, help="源工位 key：Task2 方位名(left/midleft/midright/right)；Task3 编号(0-3)")
     ap.add_argument("--dest", type=str, help="目标放置位 key：Task2 数字 1-4；Task3 形状名")
     ap.add_argument("--show", action="store_true", help="查看待核验文件")
     a = ap.parse_args()
@@ -122,13 +142,13 @@ def main():
     dest_key = "table_placements" if task == "2" else "destinations"
 
     if a.source is not None:
-        if a.key not in SOURCE_KEYS:
-            ap.error(f"--source 只支持 {SOURCE_KEYS}")
-        data["sources"][str(a.source)][a.key] = pose
+        if a.key not in _source_keys(task):
+            ap.error(f"--source 只支持 {_source_keys(task)}")
+        data["sources"][a.source][a.key] = pose
         where = f"sources.{a.source}.{a.key}"
     elif a.dest is not None:
-        if a.key not in DEST_KEYS:
-            ap.error(f"--dest 只支持 {DEST_KEYS}")
+        if a.key not in _dest_keys(task):
+            ap.error(f"--dest 只支持 {_dest_keys(task)}")
         if a.dest not in data[dest_key]:
             ap.error(f"Task{task} 没有目标 key「{a.dest}」，合法值：{list(data[dest_key])}")
         data[dest_key][a.dest][a.key] = pose
