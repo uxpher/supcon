@@ -118,6 +118,14 @@ python scripts/06_serve.py
 - 在软件里点任务1的「调用算法操作」，观察日志与耗时。
 - 现场先确认动作后的可观测状态：若对应灯应熄灭或变化，可将 `task1.action_verify` 从 `motion_only` 改为 `lamp_change`，启用动作后复拍校验；规则不保证灯会变化时保留 `motion_only`。
 
+若现场已明确决定用自由路径调试，可使用单独的显式启动模式：
+
+```bash
+python scripts/06_serve.py --unsafe-free-path
+```
+
+该服务仍按赛题请求调用 `POST /api/task1/execute`（请求头 `Content-Type: application/json`，请求体 `{}`），但会关闭 Task1 软件安全监控并允许 OMPL 自由路径；它会拒绝 Task2/3 请求。仅在现场人员全程监控、急停可用时使用。
+
 ## 4. 关键参数（config.yaml，现场调优顺序）
 
 | 参数 | 含义 | 调优建议 |

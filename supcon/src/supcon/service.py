@@ -44,16 +44,30 @@ def create_app(cfg: AppConfig) -> FastAPI:
     setup_logging(cfg.logging.get("level", "INFO"), cfg.resolve(cfg.logging.get("file", "")))
     arm, hand, camera, safety, runners = build_runtime(cfg)
     lock = threading.Lock()  # 任务接口串行化：竞赛软件不会并发调，但保险起见
+    # 仅由 scripts/06_serve.py --unsafe-free-path 显式开启。不要让竞赛软件
+    # 通过 HTTP 请求体或请求头切换该模式，避免一次普通调用意外关闭保护。
+    task1_unsafe = bool(
+        getattr(cfg.task1, "unsafe_free_path", False)
+        and getattr(cfg.task1, "unsafe_disable_safety_checks", False)
+        and getattr(cfg.arm, "force_free_path", False)
+    )
+    task1_runner = (Task1Runner(cfg, arm, hand, camera, safety=None)
+                    if task1_unsafe else runners["task1"])
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        safety.start()
-        log.info("安全监控线程已启动")
+        if task1_unsafe:
+            log.warning("⚠️ Task1 不安全自由路径服务已启动：软件安全监控不会启动；"
+                        "仅可调用 /api/task1/execute")
+        else:
+            safety.start()
+            log.info("安全监控线程已启动")
         yield
-        safety.stop()
+        if not task1_unsafe:
+            safety.stop()
         camera.close()
 
-    app = FastAPI(title="supcon-task2", lifespan=lifespan)
+    app = FastAPI(title="supcon-competition", lifespan=lifespan)
 
     @app.get("/api/health")
     def health():
@@ -73,19 +87,23 @@ def create_app(cfg: AppConfig) -> FastAPI:
 
     @app.post("/api/task1/execute")
     def task1():
-        """任务1入口：同步执行完整流程后返回。"""
+        """赛题 Task1 入口：接受空 JSON 请求体，同步执行后返回 success/message。"""
         with lock:
-            ok, msg = runners["task1"].run()
+            ok, msg = task1_runner.run()
         return {"success": ok, "message": msg}
 
     @app.post("/api/task2/execute")
     def task2():
+        if task1_unsafe:
+            return {"success": False, "message": "当前为 Task1 不安全服务，Task2 已禁用"}
         with lock:
             ok, msg = runners["task2"].run()
         return {"success": ok, "message": msg}
 
     @app.post("/api/task3/execute")
     def task3():
+        if task1_unsafe:
+            return {"success": False, "message": "当前为 Task1 不安全服务，Task3 已禁用"}
         with lock:
             ok, msg = runners["task3"].run()
         return {"success": ok, "message": msg}
