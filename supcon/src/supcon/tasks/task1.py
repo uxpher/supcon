@@ -3,8 +3,8 @@
 安全约束：
 
 * 正式任务在任何运动前校验全部面板位姿；
-* 运行开始时机械臂必须已经人工停在 ``task1_safe_pose``，不从任意未知位置
-  自动回安全位；
+* 运行开始时若不在 ``task1_safe_pose``，仅在能读取完整末端位姿时才以分段
+  笛卡尔直线自动回安全位；
 * 安全位、观察位、开关接近位之间使用分段笛卡尔直线，不接受 OMPL 回退；
 * 任何失败（尤其 OMPL、末端未到位、接触动作失败）都不自动撤离，避免在
   已经不确定的姿态上再次下发未知路径。
@@ -41,8 +41,8 @@ def load_panel(path: str) -> dict:
 class Task1Runner:
     """任务 1 的显式状态机。
 
-    ``observe_only=True`` 只验证安全位→观察位路径，不需要相机、灯位或开关位姿，
-    到达观察位后保持不动，供现场人员检查。
+    ``observe_only=True`` 只验证当前位置→安全位→观察位路径，不需要相机、灯位或
+    开关位姿，到达观察位后保持不动，供现场人员检查。
     """
 
     def __init__(self, cfg, arm, hand, camera, safety=None):
@@ -88,9 +88,12 @@ class Task1Runner:
             raise RuntimeError(f"{label} 包含非有限数")
         return pose
 
+    def _current_pose(self, label: str) -> dict:
+        """读取可用于规划的完整实际末端位姿；未知姿态时禁止自动恢复。"""
+        return self._pose(self.arm.pose(), f"{label} 的实际末端位姿")
+
     def _read_pose(self, expected: dict, label: str) -> dict:
-        actual = self.arm.pose()
-        actual = self._pose(actual, f"{label} 后的实际末端位姿")
+        actual = self._current_pose(f"{label} 后")
         pos_tol = float(getattr(self.cfg.task1, "observe_pose_tolerance_m", 0.015))
         rpy_tol = float(getattr(self.cfg.task1, "observe_pose_tolerance_rad", 0.12))
         position, orientation = self._pose_error(actual, expected)
@@ -242,7 +245,8 @@ class Task1Runner:
         return panel
 
     # ---------- 安全运动 ----------
-    def _ensure_ready_at_safe(self, safe: dict) -> None:
+    def _ensure_ready_at_safe(self, safe: dict) -> dict:
+        """使能并确认安全位；不在安全位时受控地分段回安全位。"""
         ok, reason = self.arm.healthy()
         if not ok:
             raise ArmError(f"机械臂不健康：{reason}")
@@ -252,8 +256,25 @@ class Task1Runner:
         self.arm.enable()
         if not self.arm.enabled_all():
             raise ArmError("机械臂未完全使能")
-        self._read_pose(safe, "起始安全位确认")
-        log.info("设备就绪，已确认机械臂位于 Task1 安全位")
+        self._set_hand(getattr(self.cfg.hand, "neutral_pose", self.cfg.hand.open_pose),
+                       "中性转运姿态")
+        actual = self._current_pose("起始位置确认")
+        pos_tol = float(self.cfg.task1.observe_pose_tolerance_m)
+        rpy_tol = float(self.cfg.task1.observe_pose_tolerance_rad)
+        position, orientation = self._pose_error(actual, safe)
+        if position <= pos_tol and orientation <= rpy_tol:
+            log.info("设备就绪，已确认机械臂位于 Task1 安全位")
+            return actual
+
+        # 不从“未知”位置盲退：已读取完整 pose 才进入此分支；每个短段仍会
+        # plan_only、执行、到位校验。任一段失败时异常上抛并停止，不继续恢复。
+        log.warning("起始位置不在安全位（位置误差 %.1f mm，姿态误差 %.1f°），"
+                    "开始分段回安全位", position * 1000, math.degrees(orientation))
+        self.state = "recovering_safe"
+        actual = self._move_linear(
+            actual, safe, "当前位置→起始安全位", float(self.cfg.task1.observe_velocity))
+        log.info("已自动回到 Task1 安全位")
+        return actual
 
     def _move_segment(self, target: dict, velocity: float, label: str) -> dict:
         """执行一个短笛卡尔段；OMPL 或未到位后不再允许自动恢复。"""
@@ -384,11 +405,10 @@ class Task1Runner:
             else:
                 self.panel = None
 
-            self._ensure_ready_at_safe(safe)
-            self._set_hand(getattr(self.cfg.hand, "neutral_pose", self.cfg.hand.open_pose), "中性转运姿态")
+            at_safe = self._ensure_ready_at_safe(safe)
             self.state = "safe"
             at_observe = self._move_linear(
-                safe, observe, "安全位→观察位", float(self.cfg.task1.observe_velocity))
+                at_safe, observe, "安全位→观察位", float(self.cfg.task1.observe_velocity))
             self.state = "observe"
 
             if observe_only:

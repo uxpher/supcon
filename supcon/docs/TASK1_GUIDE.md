@@ -93,8 +93,8 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 
 ### 3.6 干跑自测（不经过竞赛软件）
 
-先在网页控制面板中把机械臂人工置于 `arm.task1_safe_pose`；程序不会从未知位置
-自动回安全位。第一轮只验证观察路径：
+程序先读取当前末端位姿：若不在 `arm.task1_safe_pose`，会以低速、逐段直线自动
+回安全位；若读不到完整位姿、任一段无法直线规划或未到位则立即停止。第一轮只验证路径：
 
 ```bash
 python scripts/05_test_task1.py --observe-only
