@@ -37,13 +37,13 @@ arm:
     roll: -0.5170
     pitch: -1.4092
     yaw: 0.5542
-  observe_pose:                        # ★ Task1 观察位（对面板拍照的位姿，务必真机标定后替换）
-    x: 0.275
-    y: -0.16
-    z: 0.48
-    roll: -3.141
-    pitch: -1.552
-    yaw: 3.141
+  observe_pose:                        # ★ 已采集：Task1 面板观察位（config/pose.txt）
+    x: 0.000
+    y: 0.410
+    z: 0.520
+    roll: -2.240
+    pitch: -1.437
+    yaw: -2.462
 
 hand:
   base_url: "http://192.168.0.22:8088"   # O10 灵巧手服务地址
@@ -92,20 +92,69 @@ task1:
     switches:
       - id: 0
         type: button
-        approach_pose: null
-        press_pose: null
+        approach_pose:                  # 已采集：开关 0 接近位
+          x: -0.076
+          y: 0.406
+          z: 0.505
+          roll: -2.141
+          pitch: -1.470
+          yaw: -2.515
+        press_pose:                     # 已采集：开关 0 按下位
+          x: -0.071
+          y: 0.416
+          z: 0.502
+          roll: -2.089
+          pitch: -1.466
+          yaw: -2.564
       - id: 1
         type: toggle
-        approach_pose: null
-        flick_start_pose: null
-        flick_end_pose: null
+        approach_pose:                  # 已采集：开关 1 接近位
+          x: -0.071
+          y: 0.375
+          z: 0.477
+          roll: -2.427
+          pitch: -1.287
+          yaw: -2.200
+        flick_start_pose:               # 已采集：开关 1 拨动起点
+          x: -0.071
+          y: 0.375
+          z: 0.477
+          roll: -2.427
+          pitch: -1.287
+          yaw: -2.200
+        flick_end_pose:                 # 已采集：开关 1 拨动终点
+          x: -0.045
+          y: 0.428
+          z: 0.506
+          roll: -1.569
+          pitch: 0.105
+          yaw: -3.135
       - id: 2
         type: button
-        approach_pose: null
-        press_pose: null
+        approach_pose:                  # 已采集：开关 2 接近位
+          x: 0.059
+          y: 0.402
+          z: 0.491
+          roll: -1.740
+          pitch: -1.235
+          yaw: -2.898
+        press_pose:                     # 已采集：开关 2 按下位
+          x: 0.048
+          y: 0.416
+          z: 0.499
+          roll: -2.697
+          pitch: -1.454
+          yaw: -1.950
     baseline_scores: null
   approach_vel: 0.15                    # 去观察位/开关上方速度
   fine_vel: 0.05                        # 下压/拨动速度（慢=稳=安全）
+  # 安全位→观察位：上层拆成短直线段，避免控制器对一次大距离请求回退 OMPL。
+  observe_step_m: 0.010                 # 单段最大平移量（m）
+  observe_step_rad: 0.052               # 单段最大姿态变化（rad，约 3°）
+  observe_velocity: 0.03                # 观察路径速度；首次现场验证保持低速
+  observe_pose_tolerance_m: 0.015       # 每段完成后的实际位置允许误差（m）
+  observe_pose_tolerance_rad: 0.12      # 每段完成后的实际姿态允许误差（rad）
+  observe_max_segments: 80              # 防止配置错误导致过多小段运动
   press_dwell_s: 0.3                    # 按压停留时间
   max_retry: 1                          # 亮灯检测失败重试次数
   lamp_margin: 5.0                     # 亮灯 ROI 亮度需超过次亮 ROI 的最小差值（0-255）
@@ -121,13 +170,13 @@ task1:
 task2:
   # ★ 所有 Task2 观察、抓取、抬升及放置位姿均在这里示教填写。
   scene:
-    observe_pose:                         # ★ 已采集：Task2 全局观察位
-      x: 0.275
-      y: -0.16
-      z: 0.50
-      roll: -3.141
-      pitch: -1.552
-      yaw: 3.141
+    observe_pose:                         # ★ 已采集：Task2 全局观察位（config/pose.txt）
+      x: 0.475
+      y: 0.226
+      z: 0.714
+      roll: -0.132
+      pitch: 0.053
+      yaw: -0.020
     default_hand_grasp: [1, 1, 1, 0.5, 0.2, 0.2, 0.5, 0.2, 0.5, 0.2]
     sources:
       left:
@@ -184,7 +233,13 @@ task3:
       fy: 0
       cx: 0
       cy: 0
-    observe_pose: null
+    observe_pose:                         # ★ 已采集：Task3 全局观察位（config/pose.txt）
+      x: -0.509
+      y: 0.215
+      z: 0.681
+      roll: -0.025
+      pitch: 0.086
+      yaw: 0.031
     perception:
       workspace_roi: [0, 0, 640, 480]
       min_depth_m: 0.15

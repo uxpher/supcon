@@ -109,6 +109,11 @@ class O10Client:
         self.set_pos(self.cfg.point_pose)
         log.info("灵巧手 → 点按姿态")
 
+    def neutral_hand(self) -> None:
+        """收拢至已示教的中性转运手型（避免 Task1 长距离移动时伸指）。"""
+        self.set_pos(self.cfg.neutral_pose)
+        log.info("灵巧手 → 中性转运姿态")
+
     # ---------- 抓取验证（Task2/3 用，无触觉版） ----------
     def close_with_verify(self, close_norm: list | None = None,
                           torque: int | None = None) -> str:

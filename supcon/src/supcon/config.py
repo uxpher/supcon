@@ -59,6 +59,13 @@ DEFAULTS: dict = {
         "panel_file": "config/runtime/panel.json",
         "approach_vel": 0.15,
         "fine_vel": 0.05,
+        # 安全位→观察位采用上层分段差值运动，而不是一次大距离请求。
+        "observe_step_m": 0.010,
+        "observe_step_rad": 0.052,
+        "observe_velocity": 0.03,
+        "observe_pose_tolerance_m": 0.015,
+        "observe_pose_tolerance_rad": 0.12,
+        "observe_max_segments": 80,
         "press_dwell_s": 0.3,
         "max_retry": 1,
         "lamp_margin": 15.0,
@@ -188,6 +195,12 @@ class Task1Config:
     panel_file: str = "config/runtime/panel.json"
     approach_vel: float = 0.15
     fine_vel: float = 0.05
+    observe_step_m: float = 0.010
+    observe_step_rad: float = 0.052
+    observe_velocity: float = 0.03
+    observe_pose_tolerance_m: float = 0.015
+    observe_pose_tolerance_rad: float = 0.12
+    observe_max_segments: int = 80
     press_dwell_s: float = 0.3
     max_retry: int = 1
     lamp_margin: float = 15.0

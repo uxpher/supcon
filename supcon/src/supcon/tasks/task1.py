@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import copy
+import math
 import time
 
 from ..robot.arm import ArmError
@@ -28,6 +29,8 @@ from ..vision.dump import DebugDump
 from ..vision.lamp import LampDetector
 
 log = logging.getLogger("task1")
+
+_POSE_KEYS = ("x", "y", "z", "roll", "pitch", "yaw")
 
 
 def load_panel(path: str) -> dict:
@@ -51,6 +54,7 @@ class Task1Runner:
         self.dump = DebugDump(cfg)
         self.panel = None
         self.switch_id = None
+        self._ompl_seen = False
 
     # ---------- 基础动作 ----------
     def _check(self) -> None:
@@ -62,11 +66,88 @@ class Task1Runner:
         self._check()
         log.info("运动 → %s (%.3f, %.3f, %.3f) vel=%.2f",
                  what, pose["x"], pose["y"], pose["z"], vel)
-        if preview:
-            self.arm.goto_pose(pose, vel=vel, plan_only=True)
-            log.info("预览通过: %s", what)
-        self.arm.goto_pose(pose, vel=vel, plan_only=False)
+        try:
+            if preview:
+                self.arm.goto_pose(pose, vel=vel, plan_only=True)
+                log.info("预览通过: %s", what)
+            self.arm.goto_pose(pose, vel=vel, plan_only=False)
+        except ArmError as exc:
+            if "OMPL" in str(exc):
+                self._ompl_seen = True
+            raise
         self._check()
+
+    @staticmethod
+    def _angle_delta(start: float, target: float) -> float:
+        """目标相对起点的最短角度差，范围为 [-pi, pi)。"""
+        return (target - start + math.pi) % (2.0 * math.pi) - math.pi
+
+    @staticmethod
+    def _pose_distance(actual: dict, expected: dict) -> tuple[float, float]:
+        """返回平移欧氏误差（m）和最大的环绕姿态误差（rad）。"""
+        position = math.sqrt(sum((float(actual[key]) - float(expected[key])) ** 2
+                                 for key in ("x", "y", "z")))
+        angle = max(abs(Task1Runner._angle_delta(float(actual[key]), float(expected[key])))
+                    for key in ("roll", "pitch", "yaw"))
+        return position, angle
+
+    def _assert_reached(self, expected: dict, label: str) -> dict:
+        """读取实际末端位姿，拒绝控制器未到位或 TF 异常时继续下一段。"""
+        actual = self.arm.pose()
+        if not isinstance(actual, dict) or any(key not in actual for key in _POSE_KEYS):
+            raise ArmError(f"{label} 后无法读取完整末端位姿，拒绝继续差值路径")
+        pos_err, angle_err = self._pose_distance(actual, expected)
+        if (pos_err > self.cfg.task1.observe_pose_tolerance_m or
+                angle_err > self.cfg.task1.observe_pose_tolerance_rad):
+            raise ArmError(
+                f"{label} 实际位姿偏差过大：位置 {pos_err * 1000:.1f} mm，"
+                f"姿态 {math.degrees(angle_err):.1f}°")
+        return actual
+
+    def _move_safe_to_observe_incrementally(self) -> None:
+        """安全位→观察位的上层差值运动。
+
+        控制器的 ``eef_step`` 只在单个大请求内部插值，仍可能整体回退 OMPL。
+        此处将同一路径拆成独立、短小的直线请求；每段先仅规划、再低速执行、
+        最后核对实际位姿。任一段 OMPL 都立即停止，不允许继续下发指令。
+        """
+        start = self._assert_reached(self.cfg.arm.task1_safe_pose, "起始安全位")
+        target = self.cfg.arm.observe_pose
+        try:
+            translation = math.sqrt(sum((float(target[key]) - float(start[key])) ** 2
+                                        for key in ("x", "y", "z")))
+            angle_deltas = {key: self._angle_delta(float(start[key]), float(target[key]))
+                            for key in ("roll", "pitch", "yaw")}
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError("Task1 安全位或观察位缺少有效的六维数值") from exc
+        if self.cfg.task1.observe_step_m <= 0 or self.cfg.task1.observe_step_rad <= 0:
+            raise RuntimeError("observe_step_m / observe_step_rad 必须大于 0")
+        count = max(1,
+                    math.ceil(translation / self.cfg.task1.observe_step_m),
+                    math.ceil(max(abs(v) for v in angle_deltas.values()) /
+                              self.cfg.task1.observe_step_rad))
+        if count > self.cfg.task1.observe_max_segments:
+            raise RuntimeError(
+                f"安全位→观察位需要 {count} 个差值段，超过 observe_max_segments；"
+                "请核对两端位姿或增大单步上限")
+        log.info("安全位 → 观察位：差值路径 %d 段，平移 %.1f mm，最大姿态变化 %.1f°",
+                 count, translation * 1000, math.degrees(max(abs(v) for v in angle_deltas.values())))
+        for index in range(1, count + 1):
+            ratio = index / count
+            segment = {
+                "x": float(start["x"]) + (float(target["x"]) - float(start["x"])) * ratio,
+                "y": float(start["y"]) + (float(target["y"]) - float(start["y"])) * ratio,
+                "z": float(start["z"]) + (float(target["z"]) - float(start["z"])) * ratio,
+                "roll": float(start["roll"]) + angle_deltas["roll"] * ratio,
+                "pitch": float(start["pitch"]) + angle_deltas["pitch"] * ratio,
+                "yaw": float(start["yaw"]) + angle_deltas["yaw"] * ratio,
+            }
+            # 最后一段保持配置中的原始角度表示，便于末端误差与后续示教值一致。
+            if index == count:
+                segment = {key: float(target[key]) for key in _POSE_KEYS}
+            label = f"观察路径 {index}/{count}"
+            self._move(segment, self.cfg.task1.observe_velocity, label, preview=True)
+            self._assert_reached(segment, label)
 
     # ---------- 流程步骤 ----------
     def _ensure_ready(self) -> None:
@@ -145,9 +226,7 @@ class Task1Runner:
         raise RuntimeError("连续多帧未能稳定识别亮灯，请检查 ROI/基线/相机曝光")
 
     def _detect_lit_switch(self, panel: dict) -> tuple[int, list[float]]:
-        """去观察位拍照，检测亮灯，记录对应开关编号。"""
-        self._move(self.cfg.arm.observe_pose, self.cfg.task1.approach_vel,
-                   what="观察位", preview=self.cfg.task1.preview_first_move)
+        """在已到达观察位后拍照，检测亮灯并记录对应开关编号。"""
         idx = self._detect_consistent_lamp(panel)
         scores = self.detector.scores(self.camera.grab_rgb(), panel["lamps"], self.cfg.task1.roi_radius)
         return idx, scores
@@ -223,7 +302,7 @@ class Task1Runner:
             log.error("退回安全位失败: %s", e)
 
     # ---------- 总入口 ----------
-    def run(self) -> tuple[bool, str]:
+    def run(self, observe_only: bool = False) -> tuple[bool, str]:
         """执行一次完整任务1。返回 (success, message)。"""
         t0 = time.time()
         ready = False
@@ -233,16 +312,26 @@ class Task1Runner:
             # 配置（尤其是模板中的 null 示教位姿）必须在任何真机动作前失败。
             self._ensure_ready()
             ready = True
-            # 未知起始位置时先以当前手型退到安全位，再在净空处伸出食指。
+            # 先到安全位，再用上层差值法走向观察位；不再一次下发远距离观察位。
+            # 使用 O10 基础接口，兼容现场仍保留旧版 hand.py 的部署；若旧配置
+            # 尚未声明 neutral_pose，则退化为已配置的张手姿态，不会伸出点按手指。
+            neutral_pose = getattr(self.cfg.hand, "neutral_pose", self.cfg.hand.open_pose)
+            self.hand.set_pos(neutral_pose)
+            log.info("灵巧手 → 中性转运姿态")
             self._move(self.cfg.arm.task1_safe_pose, self.cfg.arm.velocity_slow,
                        what="起始安全位", preview=self.cfg.task1.preview_first_move)
-            self.hand.point_pose()
+            self._move_safe_to_observe_incrementally()
+            if observe_only:
+                log.warning("观察路径测试结束：机械臂停留在观察位，须由现场人员确认后手动恢复")
+                return True, "task1 observe route ok (arm remains at observe pose)"
             lamp_index, before_scores = self._detect_lit_switch(self.panel)
             lamp = self.panel["lamps"][lamp_index]
             self.switch_id = lamp["switch_id"]
             sw = next(sw for sw in self.panel["switches"] if sw["id"] == self.switch_id)
             log.info("亮灯 #%s → 操作开关 #%s（%s）",
                      lamp.get("id", lamp_index), sw["id"], sw["type"])
+            # 长距离转运期间收拢手指，到面板观察位后才展开点按手型。
+            self.hand.point_pose()
             self._operate(sw)
             self._verify_action(self.panel, lamp_index, before_scores)
             self._retreat()
@@ -251,6 +340,8 @@ class Task1Runner:
             return True, f"task1 ok (switch {self.switch_id}, {dt:.1f}s)"
         except Exception as e:
             log.exception("任务1失败")
-            if ready:
+            if ready and not self._ompl_seen:
                 self._retreat()
+            elif self._ompl_seen:
+                log.error("检测到 OMPL 回退：禁止自动撤离。请确认机械臂实际姿态后手动恢复。")
             return False, str(e)[:200]
