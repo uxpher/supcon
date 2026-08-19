@@ -10,4 +10,6 @@ paddlepaddle
 paddleocr
 
 # 真机相机（可选，仅 camera.mode=real 时需要）：
-# pip install pyorbbecsdk    # 版本需与 Python 版本匹配，见奥比中光官方说明
+# Gemini 335 属 Gemini 330 系列 → 用 OrbbecSDK v2 的 Python 包 pyorbbecsdk2（import 名仍是 pyorbbecsdk）。
+# 注意：PyPI 上的「pyorbbecsdk 1.x」是旧版 SDK，不支持 Gemini 335，别装错。
+# pip install pyorbbecsdk2   # 版本需与 Python 版本匹配，见奥比中光官方说明

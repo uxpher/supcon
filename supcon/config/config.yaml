@@ -6,9 +6,9 @@ service:
   port: 5000
 
 arm:
-  base_url: "http://127.0.0.1:8087"    # FTArm B9 机械臂服务地址
-  arm: "right_arm"                     # 工作区：right_arm / left_arm
-  pose_key: "right"                    # 目标位姿对象键：right / left
+  base_url: "http://192.168.0.22:8087"   # FTArm B9 机械臂服务地址
+  arm: "left_arm"                      # mode 字段：左臂用 left_arm（现场 /api/pose、/api/motors 均为 left_*）
+  pose_key: "left"                    # ⚠️ 目标位姿键/使能返回键：本服务器左臂仍用 right（网页面板 sendEE 实测）
   default_rpy: [-3.141, -1.552, 3.141] # 推荐固定姿态（rad，文档验证过的直线工作域姿态）
   velocity_fast: 0.20                  # 长距离转运速度（关节限速百分比，真机建议 ≤0.3）
   velocity_slow: 0.05                  # 下压/拨动等贴脸动作速度
@@ -16,27 +16,27 @@ arm:
   eef_step: 0.015                      # 直线插值步长（m，越小越贴近直线）
   action_gap_s: 0.3                    # 相邻动作间隔：每次运动到位后额外静置（s），防残余振动、给拍照留稳定时间
   timeout: 90                          # 运动请求客户端超时（s；服务器侧 60s 上限）
-  task1_safe_pose:                     # ★ Task1 安全位（远离电气柜面板，务必真机标定后替换）
-    x: 0.275
-    y: -0.16
-    z: 0.48
-    roll: -3.141
-    pitch: -1.552
-    yaw: 3.141
-  task2_safe_pose:                     # ★ Task2 安全位（远离槽位/台面，务必真机标定后替换）
-    x: 0.275
-    y: -0.16
-    z: 0.48
-    roll: -3.141
-    pitch: -1.552
-    yaw: 3.141
-  task3_safe_pose:                     # ★ Task3 安全位（远离几何体/槽位，务必真机标定后替换）
-    x: 0.275
-    y: -0.16
-    z: 0.48
-    roll: -3.141
-    pitch: -1.552
-    yaw: 3.141
+  task1_safe_pose:                     # ★ Task1 安全位（现场实测）
+    x: 0.0750
+    y: 0.1508
+    z: 0.4425
+    roll: -0.5170
+    pitch: -1.4092
+    yaw: 0.5542
+  task2_safe_pose:                     # ★ Task2 安全位（现场实测）
+    x: 0.0750
+    y: 0.1508
+    z: 0.4425
+    roll: -0.5170
+    pitch: -1.4092
+    yaw: 0.5542
+  task3_safe_pose:                     # ★ Task3 安全位（现场实测）
+    x: 0.0750
+    y: 0.1508
+    z: 0.4425
+    roll: -0.5170
+    pitch: -1.4092
+    yaw: 0.5542
   observe_pose:                        # ★ Task1 观察位（对面板拍照的位姿，务必真机标定后替换）
     x: 0.275
     y: -0.16
@@ -46,7 +46,7 @@ arm:
     yaw: 3.141
 
 hand:
-  base_url: "http://127.0.0.1:8088"    # O10 灵巧手服务地址
+  base_url: "http://192.168.0.22:8088"   # O10 灵巧手服务地址
   # ⚠️ 0/1 张开/闭合语义官方文档存在矛盾！先跑 scripts/01_hand_semantics.py 实测，
   #    再按实测结果修改下面三个手型（当前为候选值）。
   open_pose: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]    # 候选"张手"（需实测）
@@ -61,10 +61,10 @@ hand:
     poll_interval: 0.05
 
 camera:
-  mode: "file"                          # file=本地图片 / real=真机 Orbbec SDK / mock=模拟面板图
-  color_file: "config/runtime/panel_capture.png"  # file 模式读这张图（03 脚本会生成）
-  depth_file: ""                        # 任务1 不需要深度，留空
-  intrinsics_file: ""                   # 可选：内参 json {"fx":..,"fy":..,"cx":..,"cy":..}
+  mode: "real"                          # file=本地图片 / real=真机 Orbbec SDK / mock=模拟面板图
+  # color_file: "config/runtime/panel_capture.png"  # file 模式读这张图（03 脚本会生成）
+  # depth_file: ""                        # 任务1 不需要深度，留空
+  # intrinsics_file: ""                   # 可选：内参 json {"fx":..,"fy":..,"cx":..,"cy":..}
   align_depth_to_color: true             # Task3 动态抓取：深度硬件对齐到 RGB，无法对齐时安全失败
   width: 640
   height: 480

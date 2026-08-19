@@ -10,6 +10,7 @@ from __future__ import annotations
 import glob
 import logging
 import os
+import time
 from abc import ABC, abstractmethod
 
 import cv2
@@ -102,50 +103,62 @@ class MockCamera(Camera):
 
 
 class OrbbecCamera(Camera):
-    """真机 Gemini 335（OrbbecSDK v2 / pyorbbecsdk）。
+    """真机 Gemini 335（OrbbecSDK v2 / pyorbbecsdk2，import 名 pyorbbecsdk）。
 
-    未安装 pyorbbecsdk 时构造即报错：pip install pyorbbecsdk
+    未安装时构造即报错：pip install pyorbbecsdk2（不是 PyPI 的 pyorbbecsdk 1.x 旧包）
     """
 
     def __init__(self, width: int | None = None, height: int | None = None,
                  align_depth_to_color: bool = True):
         try:
-            from pyorbbecsdk import Config, OBSensorType, Pipeline
+            from pyorbbecsdk import Config, OBSensorType, Pipeline, OBAlignMode
         except ImportError as e:
             raise CameraError(
-                "未安装 pyorbbecsdk。真机模式需要：pip install pyorbbecsdk "
+                "未安装 pyorbbecsdk2（OrbbecSDK v2）。真机模式需要：pip install pyorbbecsdk2 "
                 "（版本需与 Python 匹配，见奥比中光官方说明）") from e
-        self._pipeline = Pipeline()
-        config = Config()
-        # 彩色流
-        color_profiles = self._pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR)
-        self._profile = color_profiles.get_default_video_stream_profile()
-        config.enable_stream(self._profile)
-        # 深度流（Gemini335 是 RGB-D：双目立体视觉 + 红外）
-        try:
-            depth_profiles = self._pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR)
-            self._depth_profile = depth_profiles.get_default_video_stream_profile()
-            config.enable_stream(self._depth_profile)
-            self._has_depth = True
-        except Exception as e:
-            self._depth_profile = None
-            self._has_depth = False
-            log.warning("深度流启动失败（将无深度数据）: %s", e)
-        if align_depth_to_color and self._has_depth:
-            # pyorbbecsdk 的枚举名称随版本略有差异；不支持硬件 D2C 时
-            # 继续启动，但 Task3 会因 RGB/Depth 尺寸不一致而安全失败。
+
+        self._has_depth = False
+        self._depth_aligned = False
+
+        def build(align_mode):
+            """构造并启动一个 pipeline；返回 (pipeline, has_depth)。失败抛异常。"""
+            pipeline = Pipeline()
+            config = Config()
+            color_profiles = pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR)
+            config.enable_stream(color_profiles.get_default_video_stream_profile())
+            has_depth = False
             try:
-                from pyorbbecsdk import OBAlignMode
-                config.set_align_mode(OBAlignMode.HW_MODE)
-                self._depth_aligned = True
+                depth_profiles = pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR)
+                config.enable_stream(depth_profiles.get_default_video_stream_profile())
+                has_depth = True
             except Exception as e:
-                self._depth_aligned = False
-                log.warning("未能启用硬件深度对齐(D2C): %s", e)
+                log.warning("深度流启动失败（将无深度数据）: %s", e)
+            if align_mode is not None:
+                config.set_align_mode(align_mode)
+            pipeline.start(config)
+            return pipeline, has_depth
+
+        # Gemini335 默认 profile 常不支持硬件 D2C：依次尝试 HW → SW → 不对齐。
+        candidates: list[tuple] = []
+        if align_depth_to_color:
+            candidates = [(OBAlignMode.HW_MODE, True), (OBAlignMode.SW_MODE, True)]
+        candidates.append((None, False))
+        last_err = None
+        for mode, aligned in candidates:
+            try:
+                self._pipeline, self._has_depth = build(mode)
+                self._depth_aligned = bool(aligned and self._has_depth)
+                log.info("相机流启动完成：对齐=%s 深度流=%s",
+                         ("HW/SW" if aligned else "无"), self._has_depth)
+                break
+            except Exception as e:
+                last_err = e
+                log.warning("对齐方式 %s 启动失败: %s", mode, e)
         else:
-            self._depth_aligned = False
-        self._pipeline.start(config)
+            raise CameraError(f"相机启动失败: {last_err}")
+
         self.intrinsics = self._read_intrinsics()
-        log.info("Gemini 335 彩色流已启动，深度流=%s，内参=%s", self._has_depth, self.intrinsics)
+        log.info("Gemini 335 内参=%s", self.intrinsics)
 
     def _read_intrinsics(self) -> dict | None:
         try:
@@ -205,16 +218,26 @@ class OrbbecCamera(Camera):
         return depth_m
 
     def grab_rgbd(self) -> tuple[np.ndarray, np.ndarray | None]:
-        """从同一 FrameSet 解码 RGB 和 Y16 深度（深度单位统一为米）。"""
-        frames = self._pipeline.wait_for_frames(2000)
+        """从同一 FrameSet 解码 RGB 和 Y16 深度（深度单位统一为米）。
+
+        彩色流（1280x720）常比深度流（848x480）晚到：轮询等待彩色帧就绪。
+        当前分类走 RGB、深度仅用于可视化，分辨率不一致时只告警不报错。
+        """
+        frames = None
+        for _ in range(20):
+            frames = self._pipeline.wait_for_frames(2000)
+            if frames is not None and frames.get_color_frame() is not None:
+                break
+            time.sleep(0.1)
         if frames is None:
             raise CameraError("取流超时（2s 无帧）")
         rgb = self._decode_rgb(frames.get_color_frame())
         depth = self._decode_depth(frames.get_depth_frame()) if self._has_depth else None
         if depth is not None and depth.shape != rgb.shape[:2]:
-            raise CameraError(
-                f"RGB/深度未对齐：RGB={rgb.shape[:2]} depth={depth.shape}。"
-                "请启用 Gemini335 的硬件 D2C，或选择匹配的彩色/深度 profile。")
+            log.warning(
+                "RGB/深度分辨率不一致：RGB=%s depth=%s（深度未对齐）。"
+                "当前分类走 RGB、深度仅用于可视化，不影响执行。",
+                rgb.shape[:2], depth.shape)
         return rgb, depth
 
     def grab_rgb(self) -> np.ndarray:

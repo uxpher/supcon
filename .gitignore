@@ -15,3 +15,8 @@ o10_*.txt
 o10_*.json
 决赛赛题.txt
 更新说明.txt
+
+# 运行产物（Orbbec SDK 日志、相机采集图），不入版本
+Log/
+OrbbecSDK.log.txt
+supcon/image/
