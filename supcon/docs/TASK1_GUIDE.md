@@ -53,7 +53,7 @@ python scripts/01_hand_semantics.py
 
 ### 3.4 面板灯位标定（config.yaml 的 task1.panel → lamps）
 
-当前 Task1 使用 **HSV 绿色直接阈值** 判定亮灯，不需要熄灯基线。先让机械臂停在观察位，
+当前 Task1 使用 **按灯色分别判定的 HSV/亮度阈值**，不需要熄灯基线。先让机械臂停在观察位，
 再用手动方式拍图并标出三盏灯中心（最稳）：
 
 ```bash
@@ -77,7 +77,7 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 要点：
 - 面板配置里 3 个开关的类型已预设为 button/toggle/button（中间是拨杆），若实际排列不同，直接改 `config.yaml` 的 `task1.panel`；每盏灯还必须显式填写 `switch_id`，**不能依赖灯与开关的左右顺序相同**；
 - **拨动方向**必须在示教时就在实物上确认（flick_start → flick_end 的矢量就是拨动方向）；
-- 摆位时把灵巧手也摆成 `point_pose`（食指伸直）再记位姿，保证「记录位姿时的姿态 = 执行时的姿态」；
+- 摆位时，按钮使用 `point_pose`（食指伸直），拨杆使用 `neutral_pose`；记录位姿时的手型必须与执行时一致；
 - 每次记录前确认当前无报警、记录后立即 `--verify` 一次：
   ```bash
   python scripts/02_record_pose.py --verify
@@ -86,7 +86,8 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 
 ### 3.5.1 HSV 直接阈值调参
 
-运行时按每盏灯的 `color` 分别统计亮态像素占比：绿色灯使用绿色 Hue + 高饱和度/亮度；
+运行时按每盏灯的 `color` 分别统计亮态像素占比：绿色灯优先使用绿色 Hue + 高饱和度/亮度；
+Gemini 335 将绿灯灯芯过曝成近白色时，使用绿色 ROI 内的大面积高亮核心作为补充判据；
 白灯使用低饱和度 + 高亮度；红灯使用红色 Hue（兼容过曝后的橙/黄 Hue）+ 高饱和度/亮度。
 唯一通过 `lamp_on_ratio_min` 的灯即为亮灯。首次拍图后可在 `config.yaml` 调整阈值；
 不需要运行 `--save-baseline`。
@@ -126,11 +127,13 @@ python scripts/06_serve.py
 | `task1.lamp_color_s_min` / `lamp_on_v_min` | 彩色灯最低饱和度/三类灯最低亮度 | 漏检→逐步调低；反光误判→调高 |
 | `task1.white_s_max` | 白灯最大饱和度 | 彩色反光误判白灯→调低 |
 | `task1.lamp_on_ratio_min` | 对应颜色有效像素占比阈值 | 灯在 ROI 占比小→调低；反光误判→调高 |
+| `task1.green_bright_core_ratio_min` | 绿灯过曝为白芯时的高亮核心占比 | 实拍绿灯亮为 1.0、熄灭为 0；先保持 0.20，若绿灯仍漏检再小幅调低 |
 | `task1.diff_max_dist` | 做差判定：亮斑到灯位中心的最大允许距离(px) | 灯位有漂移→调大；误匹配→调小 |
 | `task1.fine_vel` | 下压/拨动速度 | 先 0.05，稳了再逐步提 |
 | `task1.press_dwell_s` | 按压停留 | 按钮行程长→加大 |
 | `arm.velocity_fast/slow` | 转运/贴脸速度 | 真机 ≤0.3，长距离可 0.25~0.3 |
 | `hand.point_pose` | 按压手型 | 01 脚本实测后定 |
+| `hand.neutral_pose` | 拨杆及长距离转运手型 | 中间拨杆执行时固定使用该手型 |
 
 ## 5. 常见问题（FAQ）
 

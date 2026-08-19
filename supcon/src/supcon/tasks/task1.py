@@ -261,6 +261,9 @@ class Task1Runner:
         ratio = float(self.cfg.task1.lamp_on_ratio_min)
         if not math.isfinite(ratio) or not 0 < ratio <= 1:
             raise RuntimeError("task1.lamp_on_ratio_min 必须在 (0, 1]")
+        green_core_ratio = float(self.cfg.task1.green_bright_core_ratio_min)
+        if not math.isfinite(green_core_ratio) or not 0 < green_core_ratio <= 1:
+            raise RuntimeError("task1.green_bright_core_ratio_min 必须在 (0, 1]")
         if self.cfg.task1.action_verify not in {"motion_only", "lamp_change"}:
             raise RuntimeError(f"未知 task1.action_verify={self.cfg.task1.action_verify}")
         return safe, observe
@@ -513,11 +516,18 @@ class Task1Runner:
 
             self.state = "switch_approach"
             # 长距离转运全程保持中性手型；仅在末端已经到达开关接近位后才
-            # 伸出点按手指，避免手指在途中扫到面板、支架或工装。
+            # 按开关类型切换为接触手型，避免手指在途中扫到面板、支架或工装。
             at_approach = self._move_linear(
                 at_observe, approach, f"观察位→开关 {self.switch_id} 接近位",
                 float(self.cfg.task1.approach_vel))
-            self._set_hand(self.cfg.hand.point_pose, "点按/拨杆姿态")
+            # 仅按钮使用食指点按。拨杆保持中性手型，避免错误伸出的食指
+            # 在拨动轨迹或面板边缘发生干涉。
+            if switch["type"] == "toggle":
+                self._set_hand(
+                    getattr(self.cfg.hand, "neutral_pose", self.cfg.hand.open_pose),
+                    "拨杆中性姿态")
+            else:
+                self._set_hand(self.cfg.hand.point_pose, "点按姿态")
             at_approach = self._operate_contact(switch)
 
             # 接触动作已由 _operate_contact 的末段机械臂退回接近位完成；

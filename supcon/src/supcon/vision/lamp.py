@@ -2,7 +2,8 @@
 
 每个灯在 config.yaml 标明 ``color: green/white/red``。绿色和红色灯要求同时满足
 对应 Hue、高饱和度及高亮度；白色灯要求低饱和度和高亮度。红色 LED 在相机过曝
-时可能呈橙/黄，故将 H=0~40 一并归入红灯的亮态范围。
+时可能呈橙/黄，故将 H=0~40 一并归入红灯的亮态范围。Gemini 335 对绿色 LED
+可能把灯芯过曝成近白色，因此绿色灯还允许“足够大的高亮核心”作为补充判据。
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ class LampDetector:
         self.red_h_low_max = cfg.red_h_low_max
         self.red_h_high_min = cfg.red_h_high_min
         self.on_ratio_min = cfg.lamp_on_ratio_min
+        self.green_bright_core_ratio_min = cfg.green_bright_core_ratio_min
         self.diff_max_dist = cfg.diff_max_dist  # 做差判定最大匹配距离（最大判定误差，px）
 
     @staticmethod
@@ -66,22 +68,40 @@ class LampDetector:
             roi = hsv[y0:y1, x0:x1]
             color = self.lamp_color(lamp, index)
             if not roi.size:
-                ratio = 0.0
+                color_ratio = bright_ratio = ratio = 0.0
+                on = False
+                criterion = "roi-empty"
             else:
                 hue, sat, value = roi[..., 0], roi[..., 1], roi[..., 2]
                 if color == "green":
-                    mask = ((hue >= self.green_h_min) & (hue <= self.green_h_max) &
-                            (sat >= self.color_s_min) & (value >= self.on_v_min))
+                    color_mask = ((hue >= self.green_h_min) & (hue <= self.green_h_max) &
+                                  (sat >= self.color_s_min) & (value >= self.on_v_min))
+                    # 实测绿灯点亮时灯芯会变为低饱和的白/青色；ROI 已由绿色
+                    # 灯位示教限定，故用大面积高亮核心补偿 Hue/S 饱和度丢失。
+                    bright_mask = value >= self.on_v_min
+                    color_ratio = float(color_mask.mean())
+                    bright_ratio = float(bright_mask.mean())
+                    on = (color_ratio >= self.on_ratio_min or
+                          bright_ratio >= self.green_bright_core_ratio_min)
+                    ratio = max(color_ratio, bright_ratio)
+                    criterion = "green-hsv" if color_ratio >= self.on_ratio_min else (
+                        "green-bright-core" if on else "off")
                 elif color == "white":
-                    mask = (sat <= self.white_s_max) & (value >= self.on_v_min)
+                    color_mask = (sat <= self.white_s_max) & (value >= self.on_v_min)
                 elif color == "red":
-                    mask = (((hue <= self.red_h_low_max) | (hue >= self.red_h_high_min)) &
-                            (sat >= self.color_s_min) & (value >= self.on_v_min))
+                    color_mask = (((hue <= self.red_h_low_max) | (hue >= self.red_h_high_min)) &
+                                  (sat >= self.color_s_min) & (value >= self.on_v_min))
                 else:
                     raise ValueError(f"未知灯颜色 {color}，应为 green/white/red")
-                ratio = float(mask.mean())
+                if color != "green":
+                    color_ratio = float(color_mask.mean())
+                    bright_ratio = float((value >= self.on_v_min).mean())
+                    ratio = color_ratio
+                    on = ratio >= self.on_ratio_min
+                    criterion = f"{color}-hsv" if on else "off"
             states.append({"index": index, "id": lamp.get("id", index), "color": color,
-                           "ratio": ratio, "on": ratio >= self.on_ratio_min})
+                           "ratio": ratio, "color_ratio": color_ratio,
+                           "bright_ratio": bright_ratio, "criterion": criterion, "on": on})
         return states
 
     def green_scores(self, rgb: np.ndarray, lamps: list) -> list[float]:

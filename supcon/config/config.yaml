@@ -184,6 +184,9 @@ task1:
   red_h_low_max: 40                     # 红/橙/黄 Hue 上界，范围 0~179
   red_h_high_min: 165                   # 深红 Hue 下界，范围 0~179
   lamp_on_ratio_min: 0.02               # 对应颜色有效像素占比达到此值才判为亮
+  # 实测 Gemini 335 中绿灯点亮时灯芯会过曝为近白色（低 S、高 V），绿色 Hue 像素可为 0。
+  # 绿色 ROI 中高亮核心达到 20% 时也判亮；绿灯熄灭照片中的该比例为 0。
+  green_bright_core_ratio_min: 0.20
   roi_radius: 18                        # 灯 ROI 半径（像素）
   diff_max_dist: 250.0                   # 最大判定误差：做差判定时亮斑到灯位中心的最大允许距离（px）
   preview_first_move: true              # 首段运动先 plan_only 预览（示教位姿已在 02 脚本校验过）

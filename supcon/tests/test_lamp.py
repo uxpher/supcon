@@ -5,6 +5,9 @@
 import pathlib
 import sys
 
+import cv2
+import numpy as np
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from supcon.config import load_config
@@ -40,6 +43,20 @@ def test_direct_threshold_ignores_white_lamp():
     assert det.detect_lit_index(on, LAMPS) == 2
 
 
+def test_green_overexposed_core_is_detected():
+    """Gemini 335 实拍中，绿灯灯芯会过曝成低饱和白/青色。"""
+    cfg = load_config()
+    det = LampDetector(cfg.task1)
+    rgb = np.zeros((480, 640, 3), dtype=np.uint8)
+    # 模拟实拍绿灯：仅有白青高亮灯芯，不再保留高饱和绿色 Hue。
+    cv2.circle(rgb, (150, 240), 14, (235, 250, 255), -1)
+    states = det.lamp_states(rgb, LAMPS)
+    assert states[0]["color_ratio"] == 0.0
+    assert states[0]["bright_ratio"] > cfg.task1.green_bright_core_ratio_min
+    assert states[0]["criterion"] == "green-bright-core"
+    assert det.detect_lit_index(rgb, LAMPS) == 0
+
+
 def test_find_bright_blobs():
     rgb = MockCamera(lamps=LAMPS, lit_index=0).grab_rgb()
     pts = LampDetector.find_bright_blobs(rgb, n=3)
@@ -52,5 +69,6 @@ if __name__ == "__main__":
     test_detect_each_lamp()
     test_no_lamp_lit()
     test_direct_threshold_ignores_white_lamp()
+    test_green_overexposed_core_is_detected()
     test_find_bright_blobs()
     print("✅ 亮灯检测测试全部通过")

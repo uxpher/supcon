@@ -41,11 +41,12 @@ def main():
     view = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     h, w = hsv.shape[:2]
     print("HSV 阈值：green H=%d~%d；red H<=%d 或 H>=%d；彩色灯 S>=%d；"
-          "白灯 S<=%d；三类灯 V>=%d；ratio>=%.3f" % (
+          "白灯 S<=%d；三类灯 V>=%d；ratio>=%.3f；绿灯高亮核心>=%.3f" % (
               cfg.task1.green_h_min, cfg.task1.green_h_max,
               cfg.task1.red_h_low_max, cfg.task1.red_h_high_min,
               cfg.task1.lamp_color_s_min, cfg.task1.white_s_max,
-              cfg.task1.lamp_on_v_min, cfg.task1.lamp_on_ratio_min))
+              cfg.task1.lamp_on_v_min, cfg.task1.lamp_on_ratio_min,
+              cfg.task1.green_bright_core_ratio_min))
     for index, lamp in enumerate(lamps):
         cx, cy = int(lamp["cx"]), int(lamp["cy"])
         radius = int(lamp.get("roi_radius", cfg.task1.roi_radius))
@@ -64,8 +65,10 @@ def main():
             hue_text, mean_s, mean_v = "ROI越界", 0.0, 0.0
         state = states[index]
         verdict = "亮候选" if state["on"] else "未通过"
-        print("灯%d[%s] ROI=(%d,%d,r=%d): on_ratio=%.4f %s | S均值=%.1f V均值=%.1f 高S/V像素H中位=%s" % (
-            index, state["color"], cx, cy, radius, state["ratio"], verdict, mean_s, mean_v, hue_text))
+        print("灯%d[%s] ROI=(%d,%d,r=%d): score=%.4f color=%.4f bright=%.4f %s[%s] | "
+              "S均值=%.1f V均值=%.1f 高S/V像素H中位=%s" % (
+            index, state["color"], cx, cy, radius, state["ratio"], state["color_ratio"],
+            state["bright_ratio"], verdict, state["criterion"], mean_s, mean_v, hue_text))
         color = (0, 255, 0) if verdict == "亮候选" else (0, 0, 255)
         cv2.circle(view, (cx, cy), radius, color, 2)
         cv2.putText(view, "#%d %s %.3f" % (index, state["color"], state["ratio"]), (cx - radius, cy - radius - 5),

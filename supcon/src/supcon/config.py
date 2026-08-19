@@ -93,6 +93,9 @@ DEFAULTS: dict = {
         "red_h_low_max": 40,
         "red_h_high_min": 165,
         "lamp_on_ratio_min": 0.02,
+        # Gemini 335 中，绿色 LED 灯芯可能过曝成近白色；要求足够大的高亮核心，
+        # 作为绿色 Hue 判定的补充，避免把小面积反光误判为亮灯。
+        "green_bright_core_ratio_min": 0.20,
         "roi_radius": 18,
         "diff_max_dist": 80.0,
         "preview_first_move": True,
@@ -247,6 +250,7 @@ class Task1Config:
     red_h_low_max: int = 40
     red_h_high_min: int = 165
     lamp_on_ratio_min: float = 0.02
+    green_bright_core_ratio_min: float = 0.20
     roi_radius: int = 18
     diff_max_dist: float = 80.0
     preview_first_move: bool = True
