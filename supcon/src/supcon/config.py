@@ -67,6 +67,10 @@ DEFAULTS: dict = {
         "observe_velocity": 0.03,
         "observe_pose_tolerance_m": 0.015,
         "observe_pose_tolerance_rad": 0.12,
+        # B9 的 /api/end_effector 返回可能早于 /api/pose 更新；每段执行后等待
+        # 实际末端反馈进入容差，避免把正常反馈滞后误判为未到位。
+        "pose_settle_timeout_s": 5.0,
+        "pose_settle_poll_s": 0.10,
         "observe_max_segments": 80,
         "press_dwell_s": 0.3,
         "max_retry": 1,
@@ -207,6 +211,8 @@ class Task1Config:
     observe_velocity: float = 0.03
     observe_pose_tolerance_m: float = 0.015
     observe_pose_tolerance_rad: float = 0.12
+    pose_settle_timeout_s: float = 5.0
+    pose_settle_poll_s: float = 0.10
     observe_max_segments: int = 80
     press_dwell_s: float = 0.3
     max_retry: int = 1

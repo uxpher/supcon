@@ -93,16 +93,28 @@ class Task1Runner:
         return self._pose(self.arm.pose(), f"{label} 的实际末端位姿")
 
     def _read_pose(self, expected: dict, label: str) -> dict:
-        actual = self._current_pose(f"{label} 后")
+        """等待 /api/pose 反馈到位，兼容 B9 指令返回早于 TF 更新的情况。"""
         pos_tol = float(getattr(self.cfg.task1, "observe_pose_tolerance_m", 0.015))
         rpy_tol = float(getattr(self.cfg.task1, "observe_pose_tolerance_rad", 0.12))
-        position, orientation = self._pose_error(actual, expected)
-        if position > pos_tol or orientation > rpy_tol:
-            self.motion_uncertain = True
-            raise ArmError(
-                f"{label} 未精确到位：位置误差 {position * 1000:.1f} mm，"
-                f"姿态误差 {math.degrees(orientation):.1f}°")
-        return actual
+        timeout_s = float(getattr(self.cfg.task1, "pose_settle_timeout_s", 5.0))
+        poll_s = float(getattr(self.cfg.task1, "pose_settle_poll_s", 0.10))
+        deadline = time.monotonic() + timeout_s
+        actual = None
+        position = orientation = float("inf")
+        while True:
+            self._check()
+            actual = self._current_pose(f"{label} 后")
+            position, orientation = self._pose_error(actual, expected)
+            if position <= pos_tol and orientation <= rpy_tol:
+                return actual
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(poll_s)
+        self.motion_uncertain = True
+        raise ArmError(
+            f"{label} 等待 {timeout_s:.1f}s 后仍未到位："
+            f"位置误差 {position * 1000:.1f} mm，姿态误差 {math.degrees(orientation):.1f}°，"
+            f"实际位姿 {actual}")
 
     def _log_ompl_diagnostics(self, target: dict, label: str, velocity: float,
                               error: Exception) -> None:
@@ -156,7 +168,9 @@ class Task1Runner:
                               ("approach_vel", 0.05),
                               ("fine_vel", 0.03),
                               ("observe_pose_tolerance_m", 0.015),
-                              ("observe_pose_tolerance_rad", 0.12)):
+                              ("observe_pose_tolerance_rad", 0.12),
+                              ("pose_settle_timeout_s", 5.0),
+                              ("pose_settle_poll_s", 0.10)):
             value = float(getattr(self.cfg.task1, key, fallback))
             if not math.isfinite(value) or value <= 0:
                 raise RuntimeError(f"task1.{key} 必须为正的有限数")

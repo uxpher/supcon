@@ -8,9 +8,10 @@ service:
 arm:
   base_url: "http://192.168.0.22:8087"   # FTArm B9 机械臂服务地址
   arm: "left_arm"                      # mode 字段：左臂用 left_arm（现场 /api/pose、/api/motors 均为 left_*）
-  # 左臂服务的 enable 响应嵌套在 right；但 /api/end_effector 的目标位姿字段为 left。
+  # 现场实测：左臂 mode 仍为 left_arm，但 enable 响应和 /api/end_effector
+  # 的目标位姿字段均使用 right（由 00_probe_arm_schema.py 验证）。
   pose_key: "right"                   # enable/disable 响应键（已由 Motors enabled 响应验证）
-  target_pose_key: "left"             # ★ 运动请求体键；此前设为 right 会收到 HTTP 400
+  target_pose_key: "right"            # ★ /api/end_effector 的目标位姿字段（现场探测已验证）
   default_rpy: [-3.141, -1.552, 3.141] # 推荐固定姿态（rad，文档验证过的直线工作域姿态）
   velocity_fast: 0.20                  # 长距离转运速度（关节限速百分比，真机建议 ≤0.3）
   velocity_slow: 0.05                  # 下压/拨动等贴脸动作速度
@@ -157,6 +158,8 @@ task1:
   observe_velocity: 0.03                # 观察路径速度；首次现场验证保持低速
   observe_pose_tolerance_m: 0.015       # 每段完成后的实际位置允许误差（m）
   observe_pose_tolerance_rad: 0.12      # 每段完成后的实际姿态允许误差（rad）
+  pose_settle_timeout_s: 5.0            # 每段指令返回后，等待 /api/pose 反馈到位的最长时间
+  pose_settle_poll_s: 0.10              # 等待到位期间的 /api/pose 轮询周期
   observe_max_segments: 80              # 防止配置错误导致过多小段运动
   press_dwell_s: 0.3                    # 按压停留时间
   max_retry: 1                          # 亮灯检测失败重试次数
