@@ -120,12 +120,16 @@ class O10Client:
         target = list(close_norm) if close_norm else list(self.cfg.close_pose)
         rad = norm_to_rad(target)
         torque = torque if torque is not None else self.cfg.torque_ma
+        command_done = threading.Event()
+        command_error: list[Exception] = []
 
         def _send() -> None:
             try:
                 self.set_pvc(rad, torque=torque)
             except Exception as e:
-                log.warning("闭合指令异常: %s", e)
+                command_error.append(e)
+            finally:
+                command_done.set()
 
         # 后台发闭合指令，主线程轮询状态做闭环判断
         threading.Thread(target=_send, daemon=True).start()
@@ -135,6 +139,8 @@ class O10Client:
         prev = None
         latest = None
         while time.time() - t0 < v.timeout_s:
+            if command_done.is_set() and command_error:
+                raise HandError(f"闭合指令失败: {command_error[0]}") from command_error[0]
             try:
                 latest = self.status()
             except Exception:
@@ -158,6 +164,8 @@ class O10Client:
             prev = latest
             time.sleep(v.poll_interval)
 
+        if command_done.is_set() and command_error:
+            raise HandError(f"闭合指令失败: {command_error[0]}") from command_error[0]
         s = latest or self.status()
         pos = s.get("position") or []
         errs = s.get("error_codes") or []

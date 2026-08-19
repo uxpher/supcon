@@ -47,3 +47,33 @@ def pose_to_matrix(pose: dict) -> np.ndarray:
     T[:3, :3] = rpy_to_matrix(pose["roll"], pose["pitch"], pose["yaw"])
     T[:3, 3] = [pose["x"], pose["y"], pose["z"]]
     return T
+
+
+def matrix_to_rpy(rotation: np.ndarray) -> tuple[float, float, float]:
+    """3x3 旋转矩阵 → ``roll, pitch, yaw``。
+
+    与 :func:`rpy_to_matrix` 使用同一 ``Rz·Ry·Rx`` 约定。接近万向锁时
+    固定 roll 为 0；Task3 的俯抓姿态远离该奇异点，但仍显式处理以避免
+    把数值噪声放大成关节大幅旋转。
+    """
+    R = np.asarray(rotation, dtype=float)
+    if R.shape != (3, 3):
+        raise ValueError(f"rotation 必须为 3x3，实际为 {R.shape}")
+    pitch = math.asin(float(np.clip(-R[2, 0], -1.0, 1.0)))
+    if abs(math.cos(pitch)) > 1e-7:
+        roll = math.atan2(float(R[2, 1]), float(R[2, 2]))
+        yaw = math.atan2(float(R[1, 0]), float(R[0, 0]))
+    else:
+        roll = 0.0
+        yaw = math.atan2(float(-R[0, 1]), float(R[1, 1]))
+    return roll, pitch, yaw
+
+
+def matrix_to_pose(transform: np.ndarray) -> dict:
+    """4x4 齐次变换矩阵 → B9 所需的末端位姿 dict。"""
+    T = np.asarray(transform, dtype=float)
+    if T.shape != (4, 4):
+        raise ValueError(f"transform 必须为 4x4，实际为 {T.shape}")
+    roll, pitch, yaw = matrix_to_rpy(T[:3, :3])
+    return {"x": float(T[0, 3]), "y": float(T[1, 3]), "z": float(T[2, 3]),
+            "roll": roll, "pitch": pitch, "yaw": yaw}

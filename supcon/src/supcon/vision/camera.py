@@ -32,6 +32,14 @@ class Camera(ABC):
     def grab_depth(self) -> np.ndarray | None:
         return None
 
+    def grab_rgbd(self) -> tuple[np.ndarray, np.ndarray | None]:
+        """同一观察时刻的 RGB 与深度。
+
+        Task3 必须使用该接口，避免分别调用 ``grab_rgb`` / ``grab_depth``
+        取得不同帧而造成像素与深度不对应。
+        """
+        return self.grab_rgb(), self.grab_depth()
+
     def close(self) -> None:
         pass
 
@@ -99,7 +107,8 @@ class OrbbecCamera(Camera):
     未安装 pyorbbecsdk 时构造即报错：pip install pyorbbecsdk
     """
 
-    def __init__(self, width: int | None = None, height: int | None = None):
+    def __init__(self, width: int | None = None, height: int | None = None,
+                 align_depth_to_color: bool = True):
         try:
             from pyorbbecsdk import Config, OBSensorType, Pipeline
         except ImportError as e:
@@ -112,7 +121,7 @@ class OrbbecCamera(Camera):
         color_profiles = self._pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR)
         self._profile = color_profiles.get_default_video_stream_profile()
         config.enable_stream(self._profile)
-        # 深度流（Gemini335 是 RGB-D：双目结构光 + 红外）
+        # 深度流（Gemini335 是 RGB-D：双目立体视觉 + 红外）
         try:
             depth_profiles = self._pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR)
             self._depth_profile = depth_profiles.get_default_video_stream_profile()
@@ -122,6 +131,18 @@ class OrbbecCamera(Camera):
             self._depth_profile = None
             self._has_depth = False
             log.warning("深度流启动失败（将无深度数据）: %s", e)
+        if align_depth_to_color and self._has_depth:
+            # pyorbbecsdk 的枚举名称随版本略有差异；不支持硬件 D2C 时
+            # 继续启动，但 Task3 会因 RGB/Depth 尺寸不一致而安全失败。
+            try:
+                from pyorbbecsdk import OBAlignMode
+                config.set_align_mode(OBAlignMode.HW_MODE)
+                self._depth_aligned = True
+            except Exception as e:
+                self._depth_aligned = False
+                log.warning("未能启用硬件深度对齐(D2C): %s", e)
+        else:
+            self._depth_aligned = False
         self._pipeline.start(config)
         self.intrinsics = self._read_intrinsics()
         log.info("Gemini 335 彩色流已启动，深度流=%s，内参=%s", self._has_depth, self.intrinsics)
@@ -136,11 +157,8 @@ class OrbbecCamera(Camera):
             log.warning("读取内参失败: %s", e)
             return None
 
-    def grab_rgb(self) -> np.ndarray:
-        frames = self._pipeline.wait_for_frames(2000)
-        if frames is None:
-            raise CameraError("取流超时（2s 无帧）")
-        cf = frames.get_color_frame()
+    @staticmethod
+    def _decode_rgb(cf) -> np.ndarray:
         if cf is None:
             raise CameraError("无彩色帧")
         w, h = cf.get_width(), cf.get_height()
@@ -165,26 +183,46 @@ class OrbbecCamera(Camera):
             log.warning("未识别的彩色像素格式 %s，按 RGB 解释；须现场核对", fmt)
         return image
 
-    def grab_depth(self) -> np.ndarray | None:
-        """深度图（float32，米）。深度流未启动时返回 None。"""
-        if not self._has_depth:
-            return None
-        frames = self._pipeline.wait_for_frames(2000)
-        if frames is None:
-            return None
-        df = frames.get_depth_frame()
+    @staticmethod
+    def _decode_depth(df) -> np.ndarray | None:
         if df is None:
             return None
         w, h = df.get_width(), df.get_height()
-        data = np.frombuffer(df.get_data(), dtype=np.uint16)
-        depth_mm = data.reshape((h, w)).astype(np.float32)
-        try:
-            scale = float(df.get_depth_scale())  # 米/计数
-        except Exception:
-            scale = 0.001  # 默认 mm
-        depth_m = depth_mm * scale
-        depth_m[depth_m <= 0] = 0.0  # 无效深度置 0
+        raw = np.frombuffer(df.get_data(), dtype=np.uint16)
+        if raw.size < w * h:
+            raise CameraError(f"深度帧长度异常: {raw.size} < {w * h}")
+        raw = raw[:w * h].reshape((h, w)).astype(np.float32)
+        # Orbbec SDK 的 value_scale 定义为：Y16 原始值 × scale = mm。
+        # 个别 Python 包版本只暴露 get_depth_scale（通常为 m/计数），故兼容两者。
+        if hasattr(df, "get_value_scale"):
+            depth_m = raw * float(df.get_value_scale()) / 1000.0
+        elif hasattr(df, "get_depth_scale"):
+            depth_m = raw * float(df.get_depth_scale())
+        else:
+            log.warning("深度帧未提供 scale，按默认 1mm/计数解释")
+            depth_m = raw / 1000.0
+        depth_m[depth_m <= 0] = 0.0
         return depth_m
+
+    def grab_rgbd(self) -> tuple[np.ndarray, np.ndarray | None]:
+        """从同一 FrameSet 解码 RGB 和 Y16 深度（深度单位统一为米）。"""
+        frames = self._pipeline.wait_for_frames(2000)
+        if frames is None:
+            raise CameraError("取流超时（2s 无帧）")
+        rgb = self._decode_rgb(frames.get_color_frame())
+        depth = self._decode_depth(frames.get_depth_frame()) if self._has_depth else None
+        if depth is not None and depth.shape != rgb.shape[:2]:
+            raise CameraError(
+                f"RGB/深度未对齐：RGB={rgb.shape[:2]} depth={depth.shape}。"
+                "请启用 Gemini335 的硬件 D2C，或选择匹配的彩色/深度 profile。")
+        return rgb, depth
+
+    def grab_rgb(self) -> np.ndarray:
+        return self.grab_rgbd()[0]
+
+    def grab_depth(self) -> np.ndarray | None:
+        """深度图（float32，米）。深度流未启动时返回 None。"""
+        return self.grab_rgbd()[1]
 
     def close(self) -> None:
         try:
@@ -197,7 +235,8 @@ def make_camera(cfg_cam, lamps: list | None = None) -> Camera:
     """按配置构造相机。lamps 仅 mock 模式绘制面板灯位时用。"""
     mode = cfg_cam.mode
     if mode == "real":
-        return OrbbecCamera(cfg_cam.width or None, cfg_cam.height or None)
+        return OrbbecCamera(cfg_cam.width or None, cfg_cam.height or None,
+                            getattr(cfg_cam, "align_depth_to_color", True))
     if mode == "mock":
         return MockCamera(lamps=lamps)
     return FileCamera(cfg_cam.color_file, cfg_cam.depth_file)

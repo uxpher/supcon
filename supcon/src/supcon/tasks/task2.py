@@ -31,8 +31,9 @@ class Task2Runner(PickPlaceRunner):
         return dict(zip(_POSITIONS, digits))
 
     def run(self) -> tuple[bool, str]:
+        ready = False
         try:
-            self.ready()
+            # 先加载、检查现场文件；避免缺标定时 ready() 把真机移动到安全位。
             scene = load_scene(self.cfg.resolve(self.task_cfg.scene_file))
             self.lift_z = (scene.get("observe_pose") or {}).get("z")
             sources = scene.get("sources") or {}
@@ -41,6 +42,10 @@ class Task2Runner(PickPlaceRunner):
                 raise RuntimeError("task2.json 的 sources 必须包含 left/midleft/midright/right 四个方位")
             if set(placements) != {"1", "2", "3", "4"}:
                 raise RuntimeError("task2.json 必须包含指定台面的 1..4 放置位")
+            if not scene.get("observe_pose"):
+                raise RuntimeError("task2.json 缺少 observe_pose")
+            self.ready()
+            ready = True
             self.move(scene["observe_pose"], "任务2观察位", self.task_cfg.observe_vel)
             rgb = self.camera.grab_rgb()
             self.dump.rgb(rgb, "ocr", "observe")
@@ -61,5 +66,6 @@ class Task2Runner(PickPlaceRunner):
             return True, "task2 ok (1→2→3→4)"
         except Exception as exc:
             log.exception("任务2失败")
-            self.retreat()
+            if ready:
+                self.retreat()
             return False, str(exc)[:200]

@@ -66,28 +66,18 @@ python scripts/09_record_arm_pose.py --task 3 --key observe_pose
 
 Task2 仅在观察位读一次整图 OCR。若 OCR 未能读出恰好 `{1,2,3,4}` 四个数字，任务停止并退回安全位，不会猜测顺序。
 
-## Task3：竖直几何体分拣
+## Task3：竖直几何体动态分拣
 
-规则基线：四个几何体均竖直摆放；识别形状后放进外侧标有对应名称的槽位；物体需完全入槽。
+规则基线：四个几何体均竖直摆放；识别形状后放进外侧标有对应名称的槽位；物体需完全入槽。源物体的桌面 XY **不示教、不固定**。
 
-**观察位设计（8 个，解决中心俯视斜视角变形）**：抓取端 4 个（每个源工位正上方）+ 放置端 4 个（每个目标槽正上方）。识别形状 OCR 优先、轮廓分类兜底；维护已放置槽位集合，已放过的槽跳过观察。
+运行流程是：全局观察位采集同帧、对齐的 RGB-D → RANSAC 分割桌面和四个突出物 → 顶面轮廓分类 → 根据实时 B9 末端位姿及手眼外参转换到基座系 → 预抓高度复拍校正 → 竖直抓/放。识别到数量、类别、置信度或位置偏差不符合要求时会停止，不猜测坐标。
 
 1. 复制模板：`mkdir -p config/runtime && cp config/templates/task3.example.json config/runtime/task3.json`。
-2. 填写每个源工位的 `roi`（物体轮廓区域）与 `label_roi`（若有汉字标签）。
-3. 示教每个源工位的**观察位** + 抓取三段（`10` 脚本，`--source 0..3`）：
+2. 使用 `09` 记录唯一的全局 `observe_pose`；它须能完整看到桌面工作区，且高度高于所有木块。填写 `perception.workspace_roi`、深度范围、实际 RGB 内参（真机可由 SDK 自动读取）。
+3. 完成手眼标定：`python scripts/04_calibrate_handeye.py` 会写入 `T_eef_camera`。随后测量实际抓取 TCP，并在 `calibration.json` 补充 `T_eef_tcp`。两矩阵均须用多点反投影与低速试抓复核；缺少任一个字段，Task3 会拒绝使能/运动。
+4. 现场确认槽位文字后，示教各形状槽的放置三段（`10` 脚本，`--dest 形状名`）：
 
    ```bash
-   python scripts/10_record_scene_pose.py --task 3 --source 0 --key observe_pose    # 抓取观察位（柱体正上方）
-   python scripts/10_record_scene_pose.py --task 3 --source 0 --key approach_pose
-   python scripts/10_record_scene_pose.py --task 3 --source 0 --key grasp_tcp_pose
-   python scripts/10_record_scene_pose.py --task 3 --source 0 --key lift_pose
-   # source 1/2/3 同理
-   ```
-
-4. 现场确认槽位标签后，示教各形状槽的**观察位** + 放置三段（`10` 脚本，`--dest 形状名`）：
-
-   ```bash
-   python scripts/10_record_scene_pose.py --task 3 --dest block --key observe_pose   # 放置观察位（槽正上方）
    python scripts/10_record_scene_pose.py --task 3 --dest block --key approach_pose
    python scripts/10_record_scene_pose.py --task 3 --dest block --key place_pose
    python scripts/10_record_scene_pose.py --task 3 --dest block --key retreat_pose
@@ -103,8 +93,8 @@ Task2 仅在观察位读一次整图 OCR。若 OCR 未能读出恰好 `{1,2,3,4}
    # hexagonal_prism / triangular_prism / cylinder 同理
    ```
 
-6. 对于轮廓算法低置信或道具颜色接近工装的情况，在 `type_override` 填写现场确认后的类别，不能靠猜测。
-7. 运行 `python scripts/07_validate_scene.py --task 3 --plan-only`。
+6. 调高 `min_shape_confidence`、缩小 `workspace_roi` 直到四物体稳定各识别一次；不要添加固定 `type_override` 或固定抓取坐标来绕过检测。
+7. 运行 `python scripts/07_validate_scene.py --task 3 --plan-only`。该命令验证观察位、槽位与两份外参，并只规划静态位姿；动态抓取位会在运行时逐件 `plan_only`。
 
 Task3 按更新后的竖直摆放规则实现，**不执行旧方案中的空中 6-DOF 翻转**；这能显著减少碰撞和掉落风险。
 

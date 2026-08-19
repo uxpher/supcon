@@ -65,6 +65,7 @@ camera:
   color_file: "config/runtime/panel_capture.png"  # file 模式读这张图（03 脚本会生成）
   depth_file: ""                        # 任务1 不需要深度，留空
   intrinsics_file: ""                   # 可选：内参 json {"fx":..,"fy":..,"cx":..,"cy":..}
+  align_depth_to_color: true             # Task3 动态抓取：深度硬件对齐到 RGB，无法对齐时安全失败
   width: 640
   height: 480
 

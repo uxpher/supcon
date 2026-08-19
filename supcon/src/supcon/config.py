@@ -49,6 +49,7 @@ DEFAULTS: dict = {
         "color_file": "config/runtime/panel_capture.png",
         "depth_file": "",
         "intrinsics_file": "",
+        "align_depth_to_color": True,
         "width": 640,
         "height": 480,
     },
@@ -162,6 +163,7 @@ class CameraConfig:
     color_file: str = "config/runtime/panel_capture.png"
     depth_file: str = ""
     intrinsics_file: str = ""
+    align_depth_to_color: bool = True
     width: int = 640
     height: int = 480
 

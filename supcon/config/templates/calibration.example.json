@@ -1,0 +1,5 @@
+{
+  "T_eef_camera": null,
+  "T_eef_tcp": null,
+  "note": "T_eef_camera: 相机坐标到B9末端坐标；T_eef_tcp: 实际抓取TCP坐标到B9末端坐标。二者均为4x4刚体变换，必须经现场多点反投影和低速试抓验证后填写。"
+}

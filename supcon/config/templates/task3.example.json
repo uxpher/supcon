@@ -1,16 +1,37 @@
 {
-  "min_contour_area": 400,
-  "hand_grasps": {"block": [], "hexagonal_prism": [], "triangular_prism": [], "cylinder": []},
-  "sources": [
-    {"id": "source_0", "observe_pose": null, "roi": [0, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
-    {"id": "source_1", "observe_pose": null, "roi": [100, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
-    {"id": "source_2", "observe_pose": null, "roi": [200, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null},
-    {"id": "source_3", "observe_pose": null, "roi": [300, 0, 100, 160], "type_override": null, "label_roi": null, "approach_pose": null, "grasp_tcp_pose": null, "lift_pose": null, "hand_grasp": null}
-  ],
+  "calibration_file": "config/runtime/calibration.json",
+  "intrinsics": {"fx": 0, "fy": 0, "cx": 0, "cy": 0},
+  "observe_pose": null,
+  "perception": {
+    "workspace_roi": [0, 0, 640, 480],
+    "min_depth_m": 0.15,
+    "max_depth_m": 1.5,
+    "plane_threshold_m": 0.006,
+    "min_object_height_m": 0.012,
+    "max_object_height_m": 0.16,
+    "min_component_area_px": 500,
+    "max_component_area_px": 50000,
+    "ransac_iterations": 160,
+    "min_plane_inlier_ratio": 0.35
+  },
+  "grasp": {
+    "rpy": [-3.141, -1.552, 3.141],
+    "pregrasp_clearance_m": 0.1,
+    "grasp_top_offset_m": -0.02,
+    "lift_clearance_m": 0.12,
+    "local_refine_max_xy_m": 0.025,
+    "min_shape_confidence": 0.78
+  },
+  "hand_grasps": {
+    "block": null,
+    "hexagonal_prism": null,
+    "triangular_prism": null,
+    "cylinder": null
+  },
   "destinations": {
-    "block": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null},
-    "hexagonal_prism": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null},
-    "triangular_prism": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null},
-    "cylinder": {"observe_pose": null, "approach_pose": null, "place_pose": null, "retreat_pose": null}
+    "block": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "hexagonal_prism": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "triangular_prism": {"approach_pose": null, "place_pose": null, "retreat_pose": null},
+    "cylinder": {"approach_pose": null, "place_pose": null, "retreat_pose": null}
   }
 }
