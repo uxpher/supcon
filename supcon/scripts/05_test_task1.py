@@ -26,7 +26,7 @@ def main():
     ap.add_argument("--observe-only", action="store_true",
                     help="只测试当前位置→安全位→观察位的差值路径；到观察位即停止")
     ap.add_argument("--unsafe-free-path", action="store_true",
-                    help="危险：允许 OMPL 自由路径，跳过规划预览/到位检查/软件安全监控")
+                    help="危险：允许 OMPL 自由路径，跳过规划预览/软件安全监控；仍等待实际到位才拍照")
     ap.add_argument("--effort-guard", action="store_true", help="启用力矩绝对值上限急停")
     ap.add_argument("--effort-guard-threshold", type=float, default=None,
                     help="力矩绝对值上限(Nm)")

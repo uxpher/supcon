@@ -298,9 +298,11 @@ class Task1Runner:
     def _move_segment(self, target: dict, velocity: float, label: str) -> dict:
         """执行一个短笛卡尔段；OMPL 或未到位后不再允许自动恢复。"""
         if self._unsafe_free_path():
-            log.warning("⚠️ 自由路径调试：%s，跳过 plan_only 与到位校验", label)
+            # 即使允许 OMPL 自由路径，也不能把“HTTP 指令返回”当成“已到位”：
+            # 相机拍摄与下一步动作必须以真实六维末端反馈为准。
+            log.warning("⚠️ 自由路径调试：%s，跳过 plan_only，保留实际到位等待", label)
             self.arm.goto_pose(target, vel=velocity, plan_only=False)
-            return dict(target)
+            return self._read_pose(target, label)
         self._check()
         log.info("Task1 %s → (%.3f, %.3f, %.3f), vel=%.3f",
                  label, target["x"], target["y"], target["z"], velocity)
