@@ -41,12 +41,12 @@ arm:
     pitch: -1.4092
     yaw: 0.5542
   observe_pose:                        # ★ 已采集：Task1 面板观察位（config/pose.txt）
-    x: 0.000
-    y: 0.410
-    z: 0.520
-    roll: -2.240
-    pitch: -1.437
-    yaw: -2.462
+    x: 0.003
+    y: 0.446
+    z: 0.488
+    roll: -1.244
+    pitch: -1.473
+    yaw: 2.863
 
 hand:
   base_url: "http://192.168.0.22:8088"   # O10 灵巧手服务地址
@@ -139,19 +139,19 @@ task1:
       - id: 2
         type: button
         approach_pose:                  # 已采集：开关 2 接近位
-          x: 0.059
-          y: 0.402
-          z: 0.491
-          roll: -1.740
-          pitch: -1.235
-          yaw: -2.898
+          x: 0.030
+          y: 0.398
+          z: 0.477
+          roll: 3.117
+          pitch: -1.415
+          yaw: -1.529
         press_pose:                     # 已采集：开关 2 按下位
-          x: 0.048
-          y: 0.416
-          z: 0.499
-          roll: -2.697
-          pitch: -1.454
-          yaw: -1.950
+          x: 0.025
+          y: 0.418
+          z: 0.489
+          roll: -2.538
+          pitch: -1.434
+          yaw: -2.155
     # 旧版亮度基线字段；HSV 直接阈值模式不使用，保留仅兼容历史标定文件。
     baseline_scores: null
   approach_vel: 0.15                    # 去观察位/开关上方速度

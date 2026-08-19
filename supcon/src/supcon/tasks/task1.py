@@ -511,13 +511,17 @@ class Task1Runner:
             switch = next(item for item in self.panel["switches"] if item["id"] == self.switch_id)
             approach = self._pose(switch["approach_pose"], f"开关 {self.switch_id} 接近位")
 
-            self._set_hand(self.cfg.hand.point_pose, "点按姿态")
             self.state = "switch_approach"
+            # 长距离转运全程保持中性手型；仅在末端已经到达开关接近位后才
+            # 伸出点按手指，避免手指在途中扫到面板、支架或工装。
             at_approach = self._move_linear(
                 at_observe, approach, f"观察位→开关 {self.switch_id} 接近位",
                 float(self.cfg.task1.approach_vel))
+            self._set_hand(self.cfg.hand.point_pose, "点按/拨杆姿态")
             at_approach = self._operate_contact(switch)
 
+            # 接触动作已由 _operate_contact 的末段机械臂退回接近位完成；
+            # 现在才收回手指，然后再做接近位→观察位的机械臂转运。
             self._set_hand(getattr(self.cfg.hand, "neutral_pose", self.cfg.hand.open_pose), "中性转运姿态")
             at_observe = self._move_linear(
                 at_approach, observe, f"开关 {self.switch_id}→观察位",
