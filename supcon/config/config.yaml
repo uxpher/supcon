@@ -47,27 +47,27 @@ arm:
 hand:
   base_url: http://192.168.0.22:8088
   open_pose:
+  - 1
+  - 1
+  - 0.8
+  - 0.5
   - 0
   - 0
+  - 0.5
   - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
-  - 0
+  - 0.5
   - 0
   close_pose:
   - 1
   - 1
+  - 0.35
+  - 0.5
   - 1
   - 1
-  - 1
-  - 1
-  - 1
-  - 1
-  - 1
-  - 1
+  - 0.5
+  - 0
+  - 0.5
+  - 0
   point_pose:
   - 0.5
   - 0.5
@@ -239,14 +239,14 @@ task2:
     default_hand_grasp:
     - 1
     - 1
+    - 0.35
+    - 0.5
+    - 1
     - 1
     - 0.5
-    - 0.2
-    - 0.2
+    - 0
     - 0.5
-    - 0.2
-    - 0.5
-    - 0.2
+    - 0
     sources:
       left:
         approach_pose:
@@ -332,22 +332,20 @@ task2:
           roll: -0.2004
           pitch: -0.576824
           yaw: 2.42651
-        retreat_pose: null
-      '2':
-        approach_pose: null
-        place_pose: null
-        retreat_pose: null
-      '3':
-        approach_pose: null
-        place_pose: null
-        retreat_pose: null
-      '4':
-        approach_pose: null
-        place_pose: null
-        retreat_pose: null
+        # 共享放置位释放后回 Task2 安全位（与 arm.task2_safe_pose 一致）。
+        retreat_pose:
+          x: 0.075
+          y: 0.1508
+          z: 0.4425
+          roll: -0.517
+          pitch: -1.4092
+          yaw: 0.5542
   observe_vel: 0.15
   fine_vel: 0.05
   preflight: true
+  # 四个木块均直接放到 1 号位，仅使用其 place_pose；不使用 2~4 号放置位，
+  # 不插入放置接近位或已放木块碰撞规避；释放后按 retreat_pose 回安全位。
+  reuse_placement_1_for_all: true
 task3:
   calibration:
     T_eef_camera: null

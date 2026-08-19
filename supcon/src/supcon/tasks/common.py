@@ -84,9 +84,11 @@ class PickPlaceRunner:
         for pose in poses:
             self.arm.goto_pose(pose, vel=self.task_cfg.fine_vel, plan_only=True)
 
-    def pick_and_place(self, source: dict, destination: dict, grasp_pose: list[float]) -> None:
+    def pick_and_place(self, source: dict, destination: dict, grasp_pose: list[float],
+                       direct_place_only: bool = False) -> None:
         required_source = ("approach_pose", "grasp_tcp_pose", "lift_pose")
-        required_destination = ("approach_pose", "place_pose", "retreat_pose")
+        required_destination = (("place_pose", "retreat_pose") if direct_place_only else
+                                ("approach_pose", "place_pose", "retreat_pose"))
         for key in required_source:
             if not source.get(key):
                 raise RuntimeError(f"源工位缺少 {key}")
@@ -101,7 +103,8 @@ class PickPlaceRunner:
             self.hand.open_hand()
             raise RuntimeError("抓取验证失败：夹空")
         self.move(source["lift_pose"], "抬升", self.task_cfg.fine_vel)
-        self.move(destination["approach_pose"], "目标工位接近", self.task_cfg.observe_vel)
+        if not direct_place_only:
+            self.move(destination["approach_pose"], "目标工位接近", self.task_cfg.observe_vel)
         self.move(destination["place_pose"], "放置位")
         self.hand.open_hand()
         self.move(destination["retreat_pose"], "目标工位撤离")

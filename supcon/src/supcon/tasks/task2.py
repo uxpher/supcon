@@ -47,7 +47,11 @@ class Task2Runner(PickPlaceRunner):
         placements = scene.get("table_placements") or {}
         if set(sources) != set(_POSITIONS):
             raise RuntimeError("task2.scene 的 sources 必须包含 left/midleft/midright/right 四个方位")
-        if set(placements) != {"1", "2", "3", "4"}:
+        shared_place = bool(getattr(self.task_cfg, "reuse_placement_1_for_all", False))
+        if shared_place:
+            if not isinstance(placements.get("1"), dict):
+                raise RuntimeError("共享放置模式需要 task2.scene.table_placements.'1'.place_pose")
+        elif set(placements) != {"1", "2", "3", "4"}:
             raise RuntimeError("task2.scene 必须包含指定台面的 1..4 放置位")
         default_grasp = scene.get("default_hand_grasp")
         if not isinstance(default_grasp, list) or len(default_grasp) != 10:
@@ -60,10 +64,13 @@ class Task2Runner(PickPlaceRunner):
             grasp = source.get("hand_grasp")
             if grasp is not None and (not isinstance(grasp, list) or len(grasp) != 10):
                 raise RuntimeError(f"task2.scene.sources.{name}.hand_grasp 必须为 10 维或 null")
-        for name, destination in placements.items():
+        destinations_to_validate = {"1": placements["1"]} if shared_place else placements
+        for name, destination in destinations_to_validate.items():
             if not isinstance(destination, dict):
                 raise RuntimeError(f"task2.scene.table_placements.{name} 必须是对象")
-            for key in ("approach_pose", "place_pose", "retreat_pose"):
+            keys = (("place_pose", "retreat_pose") if shared_place else
+                    ("approach_pose", "place_pose", "retreat_pose"))
+            for key in keys:
                 self._require_pose(destination.get(key), f"task2.scene.table_placements.{name}.{key}")
 
     def run(self) -> tuple[bool, str]:
@@ -75,6 +82,7 @@ class Task2Runner(PickPlaceRunner):
             self.lift_z = (scene.get("observe_pose") or {}).get("z")
             sources = scene.get("sources") or {}
             placements = scene.get("table_placements") or {}
+            shared_place = bool(getattr(self.task_cfg, "reuse_placement_1_for_all", False))
             self.ready()
             ready = True
             self.move(scene["observe_pose"], "任务2观察位", self.task_cfg.observe_vel)
@@ -92,7 +100,10 @@ class Task2Runner(PickPlaceRunner):
                 if not grasp:
                     raise RuntimeError(f"数字 {digit}（方位 {position}）未配置抓取手型")
                 log.info("抓取数字 %d → 方位 %s", digit, position)
-                self.pick_and_place(source, placements[str(digit)], grasp)
+                destination = placements["1"] if shared_place else placements[str(digit)]
+                label = "共享 1 号放置位" if shared_place else f"{digit} 号放置位"
+                log.info("数字 %d 放置到%s", digit, label)
+                self.pick_and_place(source, destination, grasp, direct_place_only=shared_place)
             self.retreat()
             return True, "task2 ok (1→2→3→4)"
         except Exception as exc:

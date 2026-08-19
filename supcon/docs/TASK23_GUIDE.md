@@ -2,6 +2,10 @@
 
 这两个任务均已接入 `/api/task2/execute` 和 `/api/task3/execute`。代码**不会使用示例坐标执行真机动作**：缺少 `config.yaml` 中的正式标定字段时会安全返回 `success=false`。
 
+若 `task2.reuse_placement_1_for_all: true`，Task2 会将 1～4 号木块均直接放到
+`table_placements.'1'.place_pose`，不要求/执行放置接近位；释放后执行该配置的
+`retreat_pose`（当前填为 Task2 安全位）。该配置不做已放木块碰撞规避。
+
 Task2 如已由现场人员明确决定使用 OMPL 自由路径调试，可直跑
 `python scripts/05_test_task2.py --unsafe-free-path`，或服务方式启动
 `python scripts/06_serve.py --unsafe-free-path` 后调用 `POST /api/execute`、请求体

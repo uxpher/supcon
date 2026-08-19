@@ -112,6 +112,7 @@ DEFAULTS: dict = {
         "observe_vel": 0.15,
         "fine_vel": 0.05,
         "preflight": True,
+        "reuse_placement_1_for_all": False,
         "unsafe_free_path": False,          # 仅 05/06 的显式 Task2 调试开关
         "unsafe_disable_safety_checks": False,
     },
@@ -271,6 +272,7 @@ class Task2Config:
     observe_vel: float = 0.15
     fine_vel: float = 0.05
     preflight: bool = True
+    reuse_placement_1_for_all: bool = False
     unsafe_free_path: bool = False
     unsafe_disable_safety_checks: bool = False
 
