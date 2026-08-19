@@ -25,6 +25,8 @@ def main():
     ap = argparse.ArgumentParser(description="任务1 直跑测试")
     ap.add_argument("--observe-only", action="store_true",
                     help="只测试当前位置→安全位→观察位的差值路径；到观察位即停止")
+    ap.add_argument("--unsafe-free-path", action="store_true",
+                    help="危险：允许 OMPL 自由路径，跳过规划预览/到位检查/软件安全监控")
     ap.add_argument("--effort-guard", action="store_true", help="启用力矩绝对值上限急停")
     ap.add_argument("--effort-guard-threshold", type=float, default=None,
                     help="力矩绝对值上限(Nm)")
@@ -34,6 +36,11 @@ def main():
     if args.effort_guard and args.effort_guard_threshold is not None:
         cfg.safety.effort_guard_enabled = True
         cfg.safety.effort_guard_threshold = args.effort_guard_threshold
+    if args.unsafe_free_path:
+        cfg.arm.allow_ompl_fallback = True
+        cfg.arm.force_free_path = True
+        cfg.task1.unsafe_free_path = True
+        cfg.task1.unsafe_disable_safety_checks = True
 
     setup_logging(cfg.logging.get("level", "INFO"), cfg.resolve(cfg.logging.get("file", "")))
     if args.observe_only:
@@ -42,16 +49,22 @@ def main():
         arm = B9Client(cfg.arm)
         hand = O10Client(cfg.hand)
         camera = None
-        safety = SafetyMonitor(arm, hand, cfg.safety)
+        safety = None if args.unsafe_free_path else SafetyMonitor(arm, hand, cfg.safety)
         runner = Task1Runner(cfg, arm, hand, camera, safety)
     else:
         arm, hand, camera, safety, runners = build_runtime(cfg)
-        runner = runners["task1"]
-    safety.start()
+        if args.unsafe_free_path:
+            safety = None
+            runner = Task1Runner(cfg, arm, hand, camera, safety)
+        else:
+            runner = runners["task1"]
+    if safety is not None:
+        safety.start()
     try:
         ok, msg = runner.run(observe_only=args.observe_only)
     finally:
-        safety.stop()
+        if safety is not None:
+            safety.stop()
         if camera is not None:
             camera.close()
     print(f"\n结果: success={ok} message={msg}")

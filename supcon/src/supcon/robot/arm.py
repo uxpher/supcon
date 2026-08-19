@@ -139,7 +139,8 @@ class B9Client:
         payload = {
             "mode": self.cfg.arm,
             self._target_key(): target,
-            "cartesian_linear": True,
+            # 常规模式要求笛卡尔直线；自由路径调试模式直接交给 OMPL。
+            "cartesian_linear": not bool(getattr(self.cfg, "force_free_path", False)),
             "velocity_scaling": vel if vel is not None else self.cfg.velocity_fast,
             "acceleration_scaling": self.cfg.acceleration_scaling,
             "cartesian_eef_step": self.cfg.eef_step,
@@ -159,7 +160,10 @@ class B9Client:
             raise ArmError(f"运动失败: {d.get('message')}")
         msg = d.get("message", "")
         if not plan_only and "OMPL" in msg:
-            raise ArmError(f"直线已回退自由路径(OMPL)，轨迹不可控: {msg}")
+            if bool(getattr(self.cfg, "allow_ompl_fallback", False)):
+                log.warning("⚠️ 已允许 OMPL 自由路径执行：%s", msg)
+            else:
+                raise ArmError(f"直线已回退自由路径(OMPL)，轨迹不可控: {msg}")
         if not plan_only:
             time.sleep(self.cfg.action_gap_s)   # 相邻动作间隔：到位后静置，防残余振动/给拍照留稳定时间
         return d

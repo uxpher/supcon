@@ -26,6 +26,8 @@ DEFAULTS: dict = {
         "velocity_slow": 0.05,
         "acceleration_scaling": 0.12,
         "eef_step": 0.015,
+        "allow_ompl_fallback": False,  # 仅 05 --unsafe-free-path 临时启用
+        "force_free_path": False,      # 仅 05 --unsafe-free-path 临时启用
         "action_gap_s": 0.3,
         "timeout": 90,
         "task1_safe_pose": {"x": 0.275, "y": -0.16, "z": 0.48,
@@ -87,6 +89,8 @@ DEFAULTS: dict = {
         "frame_interval_s": 0.12,
         "action_verify": "motion_only",  # motion_only / lamp_change
         "action_change_min": 0.10,
+        "unsafe_free_path": False,          # 仅现场显式调试，默认禁止
+        "unsafe_disable_safety_checks": False,
     },
     "task2": {
         "scene": None,  # 主配置；scene_file 仅兼容旧版现场文件
@@ -156,6 +160,8 @@ class ArmConfig:
     velocity_slow: float = 0.05
     acceleration_scaling: float = 0.12
     eef_step: float = 0.015
+    allow_ompl_fallback: bool = False
+    force_free_path: bool = False
     action_gap_s: float = 0.3
     timeout: int = 90
     task1_safe_pose: dict = field(default_factory=lambda: {
@@ -228,6 +234,8 @@ class Task1Config:
     frame_interval_s: float = 0.12
     action_verify: str = "motion_only"
     action_change_min: float = 0.10
+    unsafe_free_path: bool = False
+    unsafe_disable_safety_checks: bool = False
 
 
 @dataclass

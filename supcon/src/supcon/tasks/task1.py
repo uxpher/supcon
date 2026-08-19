@@ -59,7 +59,12 @@ class Task1Runner:
         self.motion_uncertain = False
 
     # ---------- 基础校验与诊断 ----------
+    def _unsafe_free_path(self) -> bool:
+        return bool(getattr(self.cfg.task1, "unsafe_free_path", False))
+
     def _check(self) -> None:
+        if bool(getattr(self.cfg.task1, "unsafe_disable_safety_checks", False)):
+            return
         if self.safety is not None:
             self.safety.assert_ok()
 
@@ -292,6 +297,10 @@ class Task1Runner:
 
     def _move_segment(self, target: dict, velocity: float, label: str) -> dict:
         """执行一个短笛卡尔段；OMPL 或未到位后不再允许自动恢复。"""
+        if self._unsafe_free_path():
+            log.warning("⚠️ 自由路径调试：%s，跳过 plan_only 与到位校验", label)
+            self.arm.goto_pose(target, vel=velocity, plan_only=False)
+            return dict(target)
         self._check()
         log.info("Task1 %s → (%.3f, %.3f, %.3f), vel=%.3f",
                  label, target["x"], target["y"], target["z"], velocity)
@@ -309,6 +318,9 @@ class Task1Runner:
     def _move_linear(self, start: dict, end: dict, label: str, velocity: float) -> dict:
         """将全局直线路径拆成独立短笛卡尔段，保留线性插值语义。"""
         start, end = self._pose(start, f"{label}.start"), self._pose(end, f"{label}.end")
+        if self._unsafe_free_path():
+            log.warning("⚠️ 自由路径调试：%s 直接请求终点，不做线性分段", label)
+            return self._move_segment(end, velocity, label)
         step_m = float(getattr(self.cfg.task1, "observe_step_m", 0.010))
         step_rad = float(getattr(self.cfg.task1, "observe_step_rad", 0.052))
         max_segments = int(getattr(self.cfg.task1, "observe_max_segments", 80))
