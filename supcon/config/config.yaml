@@ -272,18 +272,54 @@ task2:
           yaw: -3.02341
         hand_grasp: null
       midleft:
-        approach_pose: null
-        grasp_tcp_pose: null
+        approach_pose:
+          x: 0.51139
+          y: 0.263599
+          z: 0.665295
+          roll: -0.0359607
+          pitch: -0.586407
+          yaw: 0.0068295
+        grasp_tcp_pose:
+          x: 0.489129
+          y: 0.273426
+          z: 0.611847
+          roll: -0.0381416
+          pitch: -0.72237
+          yaw: 0.0658728
         lift_pose: null
         hand_grasp: null
       midright:
-        approach_pose: null
-        grasp_tcp_pose: null
+        approach_pose:
+          x: 0.479219
+          y: 0.185686
+          z: 0.686354
+          roll: -0.0826803
+          pitch: -0.545799
+          yaw: 0.103589
+        grasp_tcp_pose:
+          x: 0.457744
+          y: 0.183177
+          z: 0.600096
+          roll: -0.0464635
+          pitch: -0.689865
+          yaw: 0.0834904
         lift_pose: null
         hand_grasp: null
       right:
-        approach_pose: null
-        grasp_tcp_pose: null
+        approach_pose:
+          x: 0.446403
+          y: 0.0916577
+          z: 0.688924
+          roll: -0.148758
+          pitch: -0.596616
+          yaw: 0.154221
+        grasp_tcp_pose:
+          x: 0.461119
+          y: 0.104616
+          z: 0.591847
+          roll: -0.218406
+          pitch: -0.726636
+          yaw: 0.211864
         lift_pose: null
         hand_grasp: null
     table_placements:
