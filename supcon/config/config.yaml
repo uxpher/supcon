@@ -1,216 +1,275 @@
-# ============ 任务1 算法服务配置 ============
-# 路径均相对 supcon/ 项目根目录。真机使用时改 base_url、位姿与手型即可。
-
 service:
-  host: 127.0.0.1          # 算法服务监听地址（竞赛软件填 http://127.0.0.1:5000）
+  host: 127.0.0.1
   port: 5000
-
 arm:
-  base_url: "http://192.168.0.22:8087"   # FTArm B9 机械臂服务地址
-  arm: "left_arm"                      # mode 字段：左臂用 left_arm（现场 /api/pose、/api/motors 均为 left_*）
-  # 现场实测：左臂 mode 仍为 left_arm，但 enable 响应和 /api/end_effector
-  # 的目标位姿字段均使用 right（由 00_probe_arm_schema.py 验证）。
-  pose_key: "right"                   # enable/disable 响应键（已由 Motors enabled 响应验证）
-  target_pose_key: "right"            # ★ /api/end_effector 的目标位姿字段（现场探测已验证）
-  default_rpy: [-3.141, -1.552, 3.141] # 推荐固定姿态（rad，文档验证过的直线工作域姿态）
-  velocity_fast: 0.20                  # 长距离转运速度（关节限速百分比，真机建议 ≤0.3）
-  velocity_slow: 0.05                  # 下压/拨动等贴脸动作速度
+  base_url: http://192.168.0.22:8087
+  arm: left_arm
+  pose_key: right
+  target_pose_key: right
+  default_rpy:
+  - -3.141
+  - -1.552
+  - 3.141
+  velocity_fast: 0.2
+  velocity_slow: 0.05
   acceleration_scaling: 0.12
-  eef_step: 0.015                      # 直线插值步长（m，越小越贴近直线）
-  action_gap_s: 0.3                    # 相邻动作间隔：每次运动到位后额外静置（s），防残余振动、给拍照留稳定时间
-  timeout: 90                          # 运动请求客户端超时（s；服务器侧 60s 上限）
-  task1_safe_pose:                     # ★ Task1 安全位（现场实测）
-    x: 0.0750
+  eef_step: 0.015
+  action_gap_s: 0.3
+  timeout: 90
+  task1_safe_pose:
+    x: 0.075
     y: 0.1508
     z: 0.4425
-    roll: -0.5170
+    roll: -0.517
     pitch: -1.4092
     yaw: 0.5542
-  task2_safe_pose:                     # ★ Task2 安全位（现场实测）
-    x: 0.0750
+  task2_safe_pose:
+    x: 0.075
     y: 0.1508
     z: 0.4425
-    roll: -0.5170
+    roll: -0.517
     pitch: -1.4092
     yaw: 0.5542
-  task3_safe_pose:                     # ★ Task3 安全位（现场实测）
-    x: 0.0750
+  task3_safe_pose:
+    x: 0.075
     y: 0.1508
     z: 0.4425
-    roll: -0.5170
+    roll: -0.517
     pitch: -1.4092
     yaw: 0.5542
-  observe_pose:                        # ★ 已采集：Task1 面板观察位（config/pose.txt）
+  observe_pose:
     x: 0.003
     y: 0.446
     z: 0.488
     roll: -1.244
     pitch: -1.473
     yaw: 2.863
-
 hand:
-  base_url: "http://192.168.0.22:8088"   # O10 灵巧手服务地址
-  # ★ 已采集的 O10 手型（来自 config1.yaml）。
-  open_pose: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-  close_pose: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-  point_pose: [0.5, 0.5, 0.5, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5, 0.5]
-  neutral_pose: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
-  torque_ma: 200                        # 限流闭合电流（mA，0-1000；任务1按压/拨动基本用不到闭合）
-  verify:                               # 抓取验证参数（Task2/3 用，先保留）
+  base_url: http://192.168.0.22:8088
+  open_pose:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  close_pose:
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  - 1
+  point_pose:
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.0
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+  neutral_pose:
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.9
+  - 0.5
+  - 0.9
+  - 0.5
+  - 0.9
+  torque_ma: 200
+  verify:
     timeout_s: 3.0
     settle_frames: 3
     moved_tol: 0.02
     near_full_tol: 0.05
     poll_interval: 0.05
-
 camera:
-  mode: "real"                          # file=本地图片 / real=真机 Orbbec SDK / mock=模拟面板图
-  # color_file: "config/runtime/panel_capture.png"  # file 模式读这张图（03 脚本会生成）
-  # depth_file: ""                        # 任务1 不需要深度，留空
-  # intrinsics_file: ""                   # 可选：内参 JSON 文件，包含 fx/fy/cx/cy
-  align_depth_to_color: true             # Task3 动态抓取：深度硬件对齐到 RGB，无法对齐时安全失败
+  mode: real
+  align_depth_to_color: true
   width: 640
   height: 480
-
 task1:
-  # ★ 面板灯位与 3 个开关的示教位姿。03/02 脚本均会直接回写这里。
-  # 当前的像素坐标和空位姿仅是模板；未完成现场标定时，任务会安全拒绝执行。
   panel:
     lamps:
-      - id: 0
-        switch_id: 0
-        color: green
-        # 基于 src/supcon/task1观察位照片.png 的初始标定；相机位姿变化后请用 03 手动复点。
-        cx: 478
-        cy: 154
-        roi_radius: 18
-      - id: 1
-        switch_id: 1
-        color: white
-        cx: 748
-        cy: 154
-        roi_radius: 18
-      - id: 2
-        switch_id: 2
-        color: red
-        cx: 1027
-        cy: 141
-        roi_radius: 18
+    - id: 0
+      switch_id: 0
+      color: green
+      cx: 478
+      cy: 154
+      roi_radius: 18
+    - id: 1
+      switch_id: 1
+      color: white
+      cx: 748
+      cy: 154
+      roi_radius: 18
+    - id: 2
+      switch_id: 2
+      color: red
+      cx: 1027
+      cy: 141
+      roi_radius: 18
     switches:
-      - id: 0
-        type: button
-        approach_pose:                  # 已采集：开关 0 接近位
-          x: -0.076
-          y: 0.406
-          z: 0.505
-          roll: -2.141
-          pitch: -1.470
-          yaw: -2.515
-        press_pose:                     # 已采集：开关 0 按下位
-          x: -0.071
-          y: 0.416
-          z: 0.502
-          roll: -2.089
-          pitch: -1.466
-          yaw: -2.564
-      - id: 1
-        type: toggle
-        approach_pose:                  # 已采集：开关 1 接近位
-          x: -0.071
-          y: 0.375
-          z: 0.477
-          roll: -2.427
-          pitch: -1.287
-          yaw: -2.200
-        flick_start_pose:               # 已采集：开关 1 拨动起点
-          x: -0.071
-          y: 0.375
-          z: 0.477
-          roll: -2.427
-          pitch: -1.287
-          yaw: -2.200
-        flick_end_pose:                 # 已采集：开关 1 拨动终点
-          x: -0.045
-          y: 0.428
-          z: 0.506
-          roll: -1.569
-          pitch: 0.105
-          yaw: -3.135
-      - id: 2
-        type: button
-        approach_pose:                  # 已采集：开关 2 接近位
-          x: 0.030
-          y: 0.398
-          z: 0.477
-          roll: 3.117
-          pitch: -1.415
-          yaw: -1.529
-        press_pose:                     # 已采集：开关 2 按下位
-          x: 0.025
-          y: 0.418
-          z: 0.489
-          roll: -2.538
-          pitch: -1.434
-          yaw: -2.155
-    # 旧版亮度基线字段；HSV 直接阈值模式不使用，保留仅兼容历史标定文件。
+    - id: 0
+      type: button
+      approach_pose:
+        x: -0.0777051
+        y: 0.378265
+        z: 0.457439
+        roll: -2.85233
+        pitch: -1.21645
+        yaw: -1.77497
+      press_pose:
+        x: -0.10905
+        y: 0.424706
+        z: 0.497726
+        roll: -2.74425
+        pitch: -1.42884
+        yaw: -2.04189
+    - id: 1
+      type: toggle
+      approach_pose:
+        x: -0.071
+        y: 0.375
+        z: 0.477
+        roll: -2.427
+        pitch: -1.287
+        yaw: -2.2
+      flick_start_pose:
+        x: -0.0420066
+        y: 0.421467
+        z: 0.476028
+        roll: -3.02322
+        pitch: -1.12463
+        yaw: -1.74074
+      flick_end_pose:
+        x: -0.0484605
+        y: 0.413394
+        z: 0.468128
+        roll: -2.98701
+        pitch: -1.29606
+        yaw: -1.7873
+    - id: 2
+      type: button
+      approach_pose:
+        x: 0.03
+        y: 0.398
+        z: 0.477
+        roll: 3.117
+        pitch: -1.415
+        yaw: -1.529
+      press_pose:
+        x: 0.013
+        y: 0.423
+        z: 0.489
+        roll: -2.648
+        pitch: -1.391
+        yaw: -2.162
+      flick_start_pose:
+        x: -0.0123483
+        y: 0.455484
+        z: 0.541282
+        roll: -1.63622
+        pitch: -0.0490356
+        yaw: -2.9367
+      flick_end_pose:
+        x: -0.0381624
+        y: 0.436304
+        z: 0.516073
+        roll: -1.58682
+        pitch: -0.172139
+        yaw: 3.13822
     baseline_scores: null
-  approach_vel: 0.15                    # 去观察位/开关上方速度
-  fine_vel: 0.05                        # 下压/拨动速度（慢=稳=安全）
-  # 安全位→观察位：上层拆成短直线段，避免控制器对一次大距离请求回退 OMPL。
-  observe_step_m: 0.010                 # 单段最大平移量（m）
-  observe_step_rad: 0.052               # 单段最大姿态变化（rad，约 3°）
-  observe_velocity: 0.15                # 观察路径速度；首次现场验证保持低速
-  observe_pose_tolerance_m: 0.015       # 每段完成后的实际位置允许误差（m）
-  observe_pose_tolerance_rad: 0.12      # 每段完成后的实际姿态允许误差（rad）
-  pose_settle_timeout_s: 5.0            # 每段指令返回后，等待 /api/pose 反馈到位的最长时间
-  pose_settle_poll_s: 0.10              # 等待到位期间的 /api/pose 轮询周期
-  # 到观察位后：控制器必须空闲，连续反馈稳定，再静置后才允许相机拍照。
-  observe_idle_timeout_s: 10.0          # 等待 /api/status.moving=false 的最长时间
-  observe_stable_samples: 5             # 连续稳定的末端位姿采样数
-  observe_stable_poll_s: 0.20           # 稳定采样间隔
-  observe_stable_drift_m: 0.003         # 相邻稳定采样允许的平移漂移
-  observe_stable_drift_rad: 0.03        # 相邻稳定采样允许的姿态漂移
-  observe_settle_s: 2.0                 # 稳定后额外静置时间；拍照前不可跳过
-  observe_max_segments: 80              # 防止配置错误导致过多小段运动
-  press_dwell_s: 0.3                    # 按压停留时间
-  max_retry: 1                          # 亮灯检测失败重试次数
-  # OpenCV HSV 直接阈值：按每个灯的 color（green/white/red）分别判断亮灭。
-  # 红灯过曝时可呈橙/黄，red_h_low_max=40 因而覆盖 H≈30 的实际亮灯。
-  green_h_min: 35                       # 绿色 Hue 下限，范围 0~179
-  green_h_max: 95                       # 绿色 Hue 上限，范围 0~179
-  lamp_color_s_min: 80                  # 绿/红灯的最低饱和度，范围 0~255
-  lamp_on_v_min: 160                    # 三类灯亮起的最低亮度，范围 0~255
-  white_s_max: 70                       # 白灯亮起允许的最大饱和度，范围 0~255
-  red_h_low_max: 40                     # 红/橙/黄 Hue 上界，范围 0~179
-  red_h_high_min: 165                   # 深红 Hue 下界，范围 0~179
-  lamp_on_ratio_min: 0.02               # 对应颜色有效像素占比达到此值才判为亮
-  # 实测 Gemini 335 中绿灯点亮时灯芯会过曝为近白色（低 S、高 V），绿色 Hue 像素可为 0。
-  # 绿色 ROI 中高亮核心达到 20% 时也判亮；绿灯熄灭照片中的该比例为 0。
-  green_bright_core_ratio_min: 0.20
-  roi_radius: 18                        # 灯 ROI 半径（像素）
-  diff_max_dist: 250.0                   # 最大判定误差：做差判定时亮斑到灯位中心的最大允许距离（px）
-  preview_first_move: true              # 首段运动先 plan_only 预览（示教位姿已在 02 脚本校验过）
-  confirm_frames: 3                     # 连续相同检测结果才认定亮灯
+  approach_vel: 0.15
+  fine_vel: 0.05
+  observe_step_m: 0.01
+  observe_step_rad: 0.052
+  observe_velocity: 0.15
+  observe_pose_tolerance_m: 0.015
+  observe_pose_tolerance_rad: 0.12
+  pose_settle_timeout_s: 15.0
+  pose_settle_poll_s: 0.1
+  observe_idle_timeout_s: 10.0
+  observe_stable_samples: 5
+  observe_stable_poll_s: 0.2
+  observe_stable_drift_m: 0.003
+  observe_stable_drift_rad: 0.03
+  observe_settle_s: 5.0
+  observe_max_segments: 80
+  press_dwell_s: 0.3
+  max_retry: 1
+  green_h_min: 35
+  green_h_max: 95
+  lamp_color_s_min: 80
+  lamp_on_v_min: 160
+  white_s_max: 70
+  red_h_low_max: 40
+  red_h_high_min: 165
+  lamp_on_ratio_min: 0.02
+  roi_radius: 18
+  diff_max_dist: 250.0
+  preview_first_move: true
+  confirm_frames: 3
   frame_interval_s: 0.12
-  action_verify: "motion_only"          # 现场确认灯会变化后可改为 lamp_change
-  action_change_min: 0.10               # lamp_change 时目标 ROI 绿色像素占比的最小变化
-
+  action_verify: motion_only
+  action_change_min: 0.1
 task2:
-  # ★ 所有 Task2 观察、抓取、抬升及放置位姿均在这里示教填写。
   scene:
-    observe_pose:                         # ★ 已采集：Task2 全局观察位（config/pose.txt）
+    observe_pose:
       x: 0.475
       y: 0.226
       z: 0.714
       roll: -0.132
       pitch: 0.053
-      yaw: -0.020
-    default_hand_grasp: [1, 1, 1, 0.5, 0.2, 0.2, 0.5, 0.2, 0.5, 0.2]
+      yaw: -0.02
+    default_hand_grasp:
+    - 1
+    - 1
+    - 1
+    - 0.5
+    - 0.2
+    - 0.2
+    - 0.5
+    - 0.2
+    - 0.5
+    - 0.2
     sources:
       left:
-        approach_pose: null
-        grasp_tcp_pose: null
-        lift_pose: null
+        approach_pose:
+          x: 0.504129
+          y: 0.363704
+          z: 0.711543
+          roll: -0.0500766
+          pitch: -0.623939
+          yaw: -0.0882179
+        grasp_tcp_pose:
+          x: 0.472577
+          y: 0.351541
+          z: 0.594413
+          roll: -0.124088
+          pitch: -0.802492
+          yaw: 0.193502
+        lift_pose:
+          x: -0.456024
+          y: 0.0762517
+          z: 0.545308
+          roll: -0.349719
+          pitch: -0.592725
+          yaw: -3.02341
         hand_grasp: null
       midleft:
         approach_pose: null
@@ -228,40 +287,43 @@ task2:
         lift_pose: null
         hand_grasp: null
     table_placements:
-      "1":
+      '1':
+        approach_pose: null
+        place_pose:
+          x: -0.413066
+          y: 0.166331
+          z: 0.521456
+          roll: -0.2004
+          pitch: -0.576824
+          yaw: 2.42651
+        retreat_pose: null
+      '2':
         approach_pose: null
         place_pose: null
         retreat_pose: null
-      "2":
+      '3':
         approach_pose: null
         place_pose: null
         retreat_pose: null
-      "3":
-        approach_pose: null
-        place_pose: null
-        retreat_pose: null
-      "4":
+      '4':
         approach_pose: null
         place_pose: null
         retreat_pose: null
   observe_vel: 0.15
   fine_vel: 0.05
   preflight: true
-
 task3:
-  # ★ 手眼/TCP 标定结果。04 标定脚本会写 T_eef_camera；抓取前还必须人工填 T_eef_tcp。
   calibration:
     T_eef_camera: null
     T_eef_tcp: null
-    note: "未完成标定"
-  # ★ 视觉参数、抓取手型和各形状安放槽示教位姿。
+    note: 未完成标定
   scene:
     intrinsics:
       fx: 0
       fy: 0
       cx: 0
       cy: 0
-    observe_pose:                         # ★ 已采集：Task3 全局观察位（config/pose.txt）
+    observe_pose:
       x: -0.509
       y: 0.215
       z: 0.681
@@ -269,7 +331,11 @@ task3:
       pitch: 0.086
       yaw: 0.031
     perception:
-      workspace_roi: [0, 0, 640, 480]
+      workspace_roi:
+      - 0
+      - 0
+      - 640
+      - 480
       min_depth_m: 0.15
       max_depth_m: 1.5
       plane_threshold_m: 0.006
@@ -280,8 +346,11 @@ task3:
       ransac_iterations: 160
       min_plane_inlier_ratio: 0.35
     grasp:
-      rpy: [-3.141, -1.552, 3.141]
-      pregrasp_clearance_m: 0.10
+      rpy:
+      - -3.141
+      - -1.552
+      - 3.141
+      pregrasp_clearance_m: 0.1
       grasp_top_offset_m: -0.02
       lift_clearance_m: 0.12
       local_refine_max_xy_m: 0.025
@@ -311,20 +380,17 @@ task3:
   observe_vel: 0.15
   fine_vel: 0.05
   preflight: true
-
 safety:
-  poll_interval_s: 0.3                  # 后台安全监控轮询间隔
-  disable_arm_on_emergency: false       # 紧急情况是否失能机械臂（⚠️ 会掉臂！默认只报警不动作）
-  effort_guard_enabled: false           # 力矩绝对值上限急停（默认关；需现场标定阈值后再开）
-  effort_guard_threshold: 10.0          # 力矩绝对值上限（Nm，任一关节 |effort| 超过此值触发急停）
-  feedback_age_stop_s: 2.0              # 连续超过此值才进入急停确认，避免运动期间假急停
-  feedback_fault_confirmations: 4       # 相邻轮询连续异常次数（0.3 s 间隔时约 1.2 s）
-
+  poll_interval_s: 0.3
+  disable_arm_on_emergency: false
+  effort_guard_enabled: false
+  effort_guard_threshold: 10.0
+  feedback_age_stop_s: 2.0
+  feedback_fault_confirmations: 4
 debug:
-  dump_enabled: false                   # ★ 任务执行时落盘相机帧（排查用）；正式赛建议 false 减开销
-  dump_dir: "runtime/debug"             # task1→color/ task2→ocr/ task3→shape/ 的根目录
-  depth_vis_dir: "img_vis"              # task3 深度可视化伪彩图目录（→ supcon/img_vis/）
-
+  dump_enabled: false
+  dump_dir: runtime/debug
+  depth_vis_dir: img_vis
 logging:
-  level: "INFO"
-  file: "runtime/logs/service.log"
+  level: INFO
+  file: runtime/logs/service.log

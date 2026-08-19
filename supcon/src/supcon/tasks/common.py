@@ -45,7 +45,13 @@ class PickPlaceRunner:
         self.lift_z = None   # 撤离抬升高度；任务 run 里设为观察位 z（高于物体）
         self.dump = DebugDump(cfg)
 
+    def unsafe_free_path(self) -> bool:
+        """是否为显式开启的自由路径调试模式。"""
+        return bool(getattr(self.task_cfg, "unsafe_free_path", False))
+
     def check(self) -> None:
+        if bool(getattr(self.task_cfg, "unsafe_disable_safety_checks", False)):
+            return
         if self.safety is not None:
             self.safety.assert_ok()
 
@@ -61,8 +67,8 @@ class PickPlaceRunner:
         self.arm.enable()
         if not self.arm.enabled_all():
             raise ArmError("机械臂未完全使能")
-        self.arm.goto_pose(self.safe_pose, vel=self.cfg.arm.velocity_slow,
-                           plan_only=self.task_cfg.preflight)
+        if not self.unsafe_free_path() and self.task_cfg.preflight:
+            self.arm.goto_pose(self.safe_pose, vel=self.cfg.arm.velocity_slow, plan_only=True)
         self.arm.goto_pose(self.safe_pose, vel=self.cfg.arm.velocity_slow)
         self.hand.open_hand()
 
@@ -73,7 +79,7 @@ class PickPlaceRunner:
         log.info("到达 %s", label)
 
     def preflight(self, poses: list[dict]) -> None:
-        if not self.task_cfg.preflight:
+        if self.unsafe_free_path() or not self.task_cfg.preflight:
             return
         for pose in poses:
             self.arm.goto_pose(pose, vel=self.task_cfg.fine_vel, plan_only=True)

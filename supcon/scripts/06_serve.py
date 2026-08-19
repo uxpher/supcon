@@ -6,7 +6,7 @@
 
 启动后在竞赛操作软件里把 Base URL 填 http://127.0.0.1:5000 即可。
 自测：curl http://127.0.0.1:5000/api/health
-      curl -X POST http://127.0.0.1:5000/api/task1/execute -H "Content-Type: application/json" -d "{}"
+      curl -X POST http://127.0.0.1:5000/api/execute -H "Content-Type: application/json" -d '{"task":1}'
 """
 import argparse
 import pathlib
@@ -30,7 +30,7 @@ def main():
     ap.add_argument("--effort-guard-threshold", type=float, default=None,
                     help="力矩绝对值上限(Nm)")
     ap.add_argument("--unsafe-free-path", action="store_true",
-                    help="危险：仅 Task1 使用 OMPL 自由路径并关闭软件安全监控；Task2/3 接口禁用")
+                    help="危险：Task1/Task2 均使用 OMPL 自由路径并关闭软件安全监控；Task3 接口禁用")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -43,6 +43,8 @@ def main():
         cfg.arm.force_free_path = True
         cfg.task1.unsafe_free_path = True
         cfg.task1.unsafe_disable_safety_checks = True
+        cfg.task2.unsafe_free_path = True
+        cfg.task2.unsafe_disable_safety_checks = True
 
     setup_logging(cfg.logging.get("level", "INFO"), cfg.resolve(cfg.logging.get("file", "")))
     app = create_app(cfg)
@@ -53,7 +55,7 @@ def main():
     else:
         print("力矩绝对值上限急停: 未启用（可在 config.yaml 或 --effort-guard 开启）")
     if args.unsafe_free_path:
-        print("⚠️ Task1 不安全自由路径: 已启用；仅允许调用 /api/task1/execute，保持急停可用")
+        print("⚠️ Task1/Task2 不安全自由路径: 已启用；Task3 禁用，保持急停可用")
     uvicorn.run(app, host=cfg.service.host, port=cfg.service.port)
 
 

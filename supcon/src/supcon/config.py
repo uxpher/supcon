@@ -112,6 +112,8 @@ DEFAULTS: dict = {
         "observe_vel": 0.15,
         "fine_vel": 0.05,
         "preflight": True,
+        "unsafe_free_path": False,          # 仅 05/06 的显式 Task2 调试开关
+        "unsafe_disable_safety_checks": False,
     },
     "task3": {
         "scene": None,        # 主配置；scene_file 仅兼容旧版现场文件
@@ -269,6 +271,8 @@ class Task2Config:
     observe_vel: float = 0.15
     fine_vel: float = 0.05
     preflight: bool = True
+    unsafe_free_path: bool = False
+    unsafe_disable_safety_checks: bool = False
 
 
 @dataclass

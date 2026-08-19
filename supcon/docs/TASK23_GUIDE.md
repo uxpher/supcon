@@ -2,6 +2,12 @@
 
 这两个任务均已接入 `/api/task2/execute` 和 `/api/task3/execute`。代码**不会使用示例坐标执行真机动作**：缺少 `config.yaml` 中的正式标定字段时会安全返回 `success=false`。
 
+Task2 如已由现场人员明确决定使用 OMPL 自由路径调试，可直跑
+`python scripts/05_test_task2.py --unsafe-free-path`，或服务方式启动
+`python scripts/06_serve.py --unsafe-free-path` 后调用 `POST /api/execute`、请求体
+`{"task": 2}`。
+该模式跳过 `plan_only` 与软件安全监控，失败后不自动撤离，服务会根据请求字段选择 Task1 或 Task2，并禁用 Task3；仅在急停可用且全程有人监控时使用。
+
 所有位姿记录都**只写 `check_pos/` 待核验文件、不改正式配置**，肉眼审核后手动填入 `config.yaml` 的 `task2.scene` / `task3.scene`。
 
 ## 位姿（pose）含义速查

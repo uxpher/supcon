@@ -98,5 +98,8 @@ class Task2Runner(PickPlaceRunner):
         except Exception as exc:
             log.exception("任务2失败")
             if ready:
-                self.retreat()
+                if self.unsafe_free_path():
+                    log.error("Task2 自由路径调试失败后不自动撤离；请现场确认姿态后手动恢复。")
+                else:
+                    self.retreat()
             return False, str(exc)[:200]

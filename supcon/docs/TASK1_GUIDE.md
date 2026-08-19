@@ -124,7 +124,7 @@ python scripts/06_serve.py
 python scripts/06_serve.py --unsafe-free-path
 ```
 
-该服务仍按赛题请求调用 `POST /api/task1/execute`（请求头 `Content-Type: application/json`，请求体 `{}`），但会关闭 Task1 软件安全监控并允许 OMPL 自由路径；它会拒绝 Task2/3 请求。仅在现场人员全程监控、急停可用时使用。
+该服务统一使用 `POST /api/execute`（请求头 `Content-Type: application/json`，请求体 `{"task": 1}`）选择 Task1；它会同时将 Task1/2 置于自由路径调试模式，Task3 禁用。固定路径 `POST /api/task1/execute` 仍兼容。仅在现场人员全程监控、急停可用时使用。
 
 ## 4. 关键参数（config.yaml，现场调优顺序）
 
