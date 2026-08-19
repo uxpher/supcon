@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import logging
 
-from .common import PickPlaceRunner, load_scene
+from .common import PickPlaceRunner, scene_from_task_config
 from ..vision.ocr import OcrRecognizer
 
 log = logging.getLogger("task2")
 
 _POSITIONS = ("left", "midleft", "midright", "right")
+_POSE_KEYS = ("x", "y", "z", "roll", "pitch", "yaw")
 
 
 class Task2Runner(PickPlaceRunner):
@@ -30,20 +31,50 @@ class Task2Runner(PickPlaceRunner):
                 f"请检查观察位视角/光照，或确认数字均完整位于顶面")
         return dict(zip(_POSITIONS, digits))
 
+    @staticmethod
+    def _require_pose(pose: dict | None, label: str) -> None:
+        if not isinstance(pose, dict) or any(key not in pose for key in _POSE_KEYS):
+            raise RuntimeError(f"{label} 必须是含 x/y/z/roll/pitch/yaw 的完整示教位姿")
+        try:
+            [float(pose[key]) for key in _POSE_KEYS]
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(f"{label} 包含非数值") from exc
+
+    def _validate_scene(self, scene: dict) -> None:
+        """在使能前拒绝未完成的场景模板，保证零运动失败。"""
+        self._require_pose(scene.get("observe_pose"), "task2.scene.observe_pose")
+        sources = scene.get("sources") or {}
+        placements = scene.get("table_placements") or {}
+        if set(sources) != set(_POSITIONS):
+            raise RuntimeError("task2.scene 的 sources 必须包含 left/midleft/midright/right 四个方位")
+        if set(placements) != {"1", "2", "3", "4"}:
+            raise RuntimeError("task2.scene 必须包含指定台面的 1..4 放置位")
+        default_grasp = scene.get("default_hand_grasp")
+        if not isinstance(default_grasp, list) or len(default_grasp) != 10:
+            raise RuntimeError("task2.scene.default_hand_grasp 必须为已实测的 10 维手型")
+        for name, source in sources.items():
+            if not isinstance(source, dict):
+                raise RuntimeError(f"task2.scene.sources.{name} 必须是对象")
+            for key in ("approach_pose", "grasp_tcp_pose", "lift_pose"):
+                self._require_pose(source.get(key), f"task2.scene.sources.{name}.{key}")
+            grasp = source.get("hand_grasp")
+            if grasp is not None and (not isinstance(grasp, list) or len(grasp) != 10):
+                raise RuntimeError(f"task2.scene.sources.{name}.hand_grasp 必须为 10 维或 null")
+        for name, destination in placements.items():
+            if not isinstance(destination, dict):
+                raise RuntimeError(f"task2.scene.table_placements.{name} 必须是对象")
+            for key in ("approach_pose", "place_pose", "retreat_pose"):
+                self._require_pose(destination.get(key), f"task2.scene.table_placements.{name}.{key}")
+
     def run(self) -> tuple[bool, str]:
         ready = False
         try:
-            # 先加载、检查现场文件；避免缺标定时 ready() 把真机移动到安全位。
-            scene = load_scene(self.cfg.resolve(self.task_cfg.scene_file))
+            # 先加载、检查内联配置；避免缺标定时 ready() 把真机移动到安全位。
+            scene = scene_from_task_config(self.cfg, self.task_cfg, "2")
+            self._validate_scene(scene)
             self.lift_z = (scene.get("observe_pose") or {}).get("z")
             sources = scene.get("sources") or {}
             placements = scene.get("table_placements") or {}
-            if set(sources) != set(_POSITIONS):
-                raise RuntimeError("task2.json 的 sources 必须包含 left/midleft/midright/right 四个方位")
-            if set(placements) != {"1", "2", "3", "4"}:
-                raise RuntimeError("task2.json 必须包含指定台面的 1..4 放置位")
-            if not scene.get("observe_pose"):
-                raise RuntimeError("task2.json 缺少 observe_pose")
             self.ready()
             ready = True
             self.move(scene["observe_pose"], "任务2观察位", self.task_cfg.observe_vel)

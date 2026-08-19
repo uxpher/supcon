@@ -2,7 +2,7 @@
 """步骤 9：机械臂 安全位 / 观察位 记录（只写待核验文件，不改正式配置）。
 
 3 个任务的安全位**各自独立**（防止直线移动时碰撞），观察位也各自独立。
-只写 check_pos/机械臂_安全位观察位_待核验.json，**绝不改 config.yaml / task2.json / task3.json**。
+只写 check_pos/机械臂_安全位观察位_待核验.json，**绝不改 config.yaml**。
 
 待核验文件字段：
   task1_safe_pose / task2_safe_pose / task3_safe_pose     ← 3 个任务各自安全位
@@ -42,7 +42,7 @@ def _empty() -> dict:
             "机械臂 安全位/观察位 待核验（x/y/z/roll/pitch/yaw，米/弧度，B9 base 系）。"
             "task1/2/3_safe_pose=各任务独立安全位（防直线移动碰撞）；"
             "task1/2/3_observe_pose=各任务观察位。"
-            "审核后手动填入 config.yaml 的 arm.*_safe_pose / arm.*_observe_pose 或 task2.json/task3.json 的 observe_pose。"
+            "审核后手动填入 config.yaml 的 arm.*_safe_pose / arm.observe_pose 或 task2.scene/task3.scene 的 observe_pose。"
             "本文件不改动任何正式配置。"
         ),
         **{f"task{t}_safe_pose": None for t in TASKS},

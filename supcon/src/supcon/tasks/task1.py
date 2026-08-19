@@ -3,7 +3,7 @@
 竞赛软件每次点击按钮 → POST /api/task1/execute → 本执行器跑一遍完整流程：
   1) 准备：臂电机健康 → 使能 → 手摆出食指按压姿态
   2) 去观察位拍照，检测哪盏灯亮（ROI 亮度比较）
-  3) 查 panel.json 得到该灯下方开关的示教位姿
+  3) 查 config.yaml 的 task1.panel 得到该灯下方开关的示教位姿
   4) 按钮 = 垂直下压；拨动开关 = 沿示教方向拨动
   5) 退回安全位，返回 (success, message)
 
@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import copy
 import time
 
 from ..robot.arm import ArmError
@@ -83,20 +84,43 @@ class Task1Runner:
         log.info("设备就绪（臂已使能）")
 
     def _load_and_validate_panel(self) -> dict:
-        """读取并验证 panel.json 内容。"""
-        panel = load_panel(self.cfg.resolve(self.cfg.task1.panel_file))
+        """读取并验证 config.yaml 中的 task1.panel（兼容旧 panel_file）。"""
+        if isinstance(self.cfg.task1.panel, dict):
+            panel = copy.deepcopy(self.cfg.task1.panel)
+        elif self.cfg.task1.panel_file:
+            log.warning("正在使用已弃用的 task1.panel_file；请迁移到 config.yaml 的 task1.panel")
+            panel = load_panel(self.cfg.resolve(self.cfg.task1.panel_file))
+        else:
+            raise RuntimeError("缺少 config.yaml 中的 task1.panel")
         lamps = panel.get("lamps") or []
         switches = panel.get("switches") or []
         if len(lamps) != 3 or len(switches) != 3:
-            raise RuntimeError("panel.json 必须包含 3 盏灯与 3 个开关")
+            raise RuntimeError("task1.panel 必须包含 3 盏灯与 3 个开关")
         switch_by_id = {sw.get("id"): sw for sw in switches}
         if len(switch_by_id) != 3:
-            raise RuntimeError("panel.json 的 switch id 必须唯一")
+            raise RuntimeError("task1.panel 的 switch id 必须唯一")
         for lamp in lamps:
             if "switch_id" not in lamp:
                 raise RuntimeError("每个 lamp 必须显式配置 switch_id，禁止按左右顺序隐式映射")
             if lamp["switch_id"] not in switch_by_id:
                 raise RuntimeError(f"lamp {lamp.get('id')} 指向不存在的 switch_id")
+        # 所有动作路径必须在使能、回安全位、观察位之前完整可用。否则模板中的
+        # null 位姿会导致机械臂先移动、再在真正操作前失败，不适合现场安全调试。
+        pose_keys = ("x", "y", "z", "roll", "pitch", "yaw")
+        for sw in switches:
+            kind = sw.get("type")
+            required = (("approach_pose", "press_pose") if kind == "button" else
+                        ("approach_pose", "flick_start_pose", "flick_end_pose") if kind == "toggle" else ())
+            if not required:
+                raise RuntimeError(f"开关 {sw.get('id')} 的 type 必须为 button 或 toggle")
+            for key in required:
+                pose = sw.get(key)
+                if not isinstance(pose, dict) or any(k not in pose for k in pose_keys):
+                    raise RuntimeError(f"开关 {sw.get('id')} 缺少完整示教位姿 {key}")
+                try:
+                    [float(pose[k]) for k in pose_keys]
+                except (TypeError, ValueError) as exc:
+                    raise RuntimeError(f"开关 {sw.get('id')}.{key} 包含非数值") from exc
         return panel
 
     def _detect_consistent_lamp(self, panel: dict) -> int:
@@ -202,10 +226,13 @@ class Task1Runner:
     def run(self) -> tuple[bool, str]:
         """执行一次完整任务1。返回 (success, message)。"""
         t0 = time.time()
+        ready = False
         log.info("===== 任务1 开始 =====")
         try:
-            self._ensure_ready()
             self.panel = self._load_and_validate_panel()
+            # 配置（尤其是模板中的 null 示教位姿）必须在任何真机动作前失败。
+            self._ensure_ready()
+            ready = True
             # 未知起始位置时先以当前手型退到安全位，再在净空处伸出食指。
             self._move(self.cfg.arm.task1_safe_pose, self.cfg.arm.velocity_slow,
                        what="起始安全位", preview=self.cfg.task1.preview_first_move)
@@ -224,5 +251,6 @@ class Task1Runner:
             return True, f"task1 ok (switch {self.switch_id}, {dt:.1f}s)"
         except Exception as e:
             log.exception("任务1失败")
-            self._retreat()
+            if ready:
+                self._retreat()
             return False, str(e)[:200]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""步骤3：面板灯位标定（生成 panel.json 的 lamps 部分）。
+"""步骤3：面板灯位标定（写入 config.yaml 的 task1.panel.lamps）。
 
 先抓一张面板图保存到 config/runtime/panel_capture.png，再标 3 盏灯中心：
   python scripts/03_calibrate_panel.py --mode manual   # 图片窗口鼠标点击 3 盏灯（左→右）
@@ -15,7 +15,6 @@
 - 相机模式由 config.yaml 的 camera.mode 决定（file=读图 / real=真机拍照）。
 """
 import argparse
-import json
 import pathlib
 import sys
 
@@ -24,7 +23,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from supcon.config import PROJECT_ROOT, load_config
+from supcon.config import PROJECT_ROOT, load_config, write_task_value
 from supcon.utils import setup_logging
 from supcon.vision.camera import make_camera
 from supcon.vision.lamp import LampDetector
@@ -66,10 +65,9 @@ def _align_to(src_rgb, ref_rgb) -> np.ndarray:
     return cv2.resize(src_rgb, (w, h), interpolation=cv2.INTER_LINEAR)
 
 
-def load_or_new_panel(path: str) -> dict:
-    if pathlib.Path(path).exists():
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
+def load_or_new_panel(panel: dict | None) -> dict:
+    if isinstance(panel, dict):
+        return panel
     return {
         "lamps": [],
         "switches": [
@@ -92,7 +90,7 @@ def main():
 
     cfg = load_config()
     setup_logging("INFO", None)
-    panel = load_or_new_panel(cfg.resolve(cfg.task1.panel_file))
+    panel = load_or_new_panel(cfg.task1.panel)
 
     # diff 模式：白底面板用「全灭基准帧 + 亮灯帧」做差标定，不依赖相机抓帧。
     if a.mode == "diff":
@@ -109,9 +107,8 @@ def main():
         # origin 即全灭帧，顺手写入 ROI 亮度基线，供运行时 ROI 做差判定。
         panel["baseline_scores"] = LampDetector.scores(origin, panel["lamps"],
                                                        cfg.task1.roi_radius)
-        with open(cfg.resolve(cfg.task1.panel_file), "w", encoding="utf-8") as f:
-            json.dump(panel, f, ensure_ascii=False, indent=2)
-        print(f"已写入 {cfg.task1.panel_file}：")
+        path = write_task_value("task1", "panel", panel)
+        print(f"已写入 {path} 的 task1.panel：")
         for l in panel["lamps"]:
             print(f"  灯{l['id']}: ({l['cx']:.0f}, {l['cy']:.0f})")
         print(f"  基线亮度: {[round(s, 1) for s in panel['baseline_scores']]}")
@@ -131,9 +128,8 @@ def main():
         if len(lamps) != 3:
             sys.exit("先完成 3 盏灯位置标定，再在三灯均熄灭时执行 --save-baseline")
         panel["baseline_scores"] = LampDetector.scores(rgb, lamps, cfg.task1.roi_radius)
-        with open(cfg.resolve(cfg.task1.panel_file), "w", encoding="utf-8") as f:
-            json.dump(panel, f, ensure_ascii=False, indent=2)
-        print("已写入三灯熄灭亮度基线。")
+        path = write_task_value("task1", "panel", panel)
+        print(f"已写入三灯熄灭亮度基线 → {path}。")
         return
 
     pts = []
@@ -163,10 +159,9 @@ def main():
 
     panel["lamps"] = [{"id": i, "switch_id": i, "cx": x, "cy": y, "roi_radius": cfg.task1.roi_radius}
                       for i, (x, y) in enumerate(pts)]
-    with open(cfg.resolve(cfg.task1.panel_file), "w", encoding="utf-8") as f:
-        json.dump(panel, f, ensure_ascii=False, indent=2)
+    path = write_task_value("task1", "panel", panel)
 
-    print(f"已写入 {cfg.task1.panel_file}：")
+    print(f"已写入 {path} 的 task1.panel：")
     for l in panel["lamps"]:
         print(f"  灯{l['id']}: ({l['cx']:.0f}, {l['cy']:.0f})")
     print("下一步：运行 scripts/02_record_pose.py 示教每个开关的动作位姿。")

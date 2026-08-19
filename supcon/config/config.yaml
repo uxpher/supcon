@@ -70,7 +70,17 @@ camera:
   height: 480
 
 task1:
-  panel_file: "config/runtime/panel.json" # ★ 面板标定文件（03 生成灯位，02 填开关位姿）
+  # ★ 面板灯位与 3 个开关的示教位姿。03/02 脚本均会直接回写这里。
+  # 当前的像素坐标和空位姿仅是模板；未完成现场标定时，任务会安全拒绝执行。
+  panel:
+    lamps:
+      - {id: 0, switch_id: 0, cx: 200, cy: 240, roi_radius: 18}
+      - {id: 1, switch_id: 1, cx: 320, cy: 240, roi_radius: 18}
+      - {id: 2, switch_id: 2, cx: 440, cy: 240, roi_radius: 18}
+    switches:
+      - {id: 0, type: button, approach_pose: null, press_pose: null}
+      - {id: 1, type: toggle, approach_pose: null, flick_start_pose: null, flick_end_pose: null}
+      - {id: 2, type: button, approach_pose: null, press_pose: null}
   approach_vel: 0.15                    # 去观察位/开关上方速度
   fine_vel: 0.05                        # 下压/拨动速度（慢=稳=安全）
   press_dwell_s: 0.3                    # 按压停留时间
@@ -86,13 +96,62 @@ task1:
   action_change_min: 12.0
 
 task2:
-  scene_file: "config/runtime/task2.json" # 由现场标定生成，参考 templates/task2.example.json
+  # ★ 所有 Task2 观察、抓取、抬升及放置位姿均在这里示教填写。
+  scene:
+    observe_pose: null
+    default_hand_grasp: [1, 1, 1, 0.5, 0.2, 0.2, 0.5, 0.2, 0.5, 0.2]
+    sources:
+      left:     {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+      midleft:  {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+      midright: {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+      right:    {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+    table_placements:
+      "1": {approach_pose: null, place_pose: null, retreat_pose: null}
+      "2": {approach_pose: null, place_pose: null, retreat_pose: null}
+      "3": {approach_pose: null, place_pose: null, retreat_pose: null}
+      "4": {approach_pose: null, place_pose: null, retreat_pose: null}
   observe_vel: 0.15
   fine_vel: 0.05
   preflight: true
 
 task3:
-  scene_file: "config/runtime/task3.json" # 由现场标定生成，参考 templates/task3.example.json
+  # ★ 手眼/TCP 标定结果。04 标定脚本会写 T_eef_camera；抓取前还必须人工填 T_eef_tcp。
+  calibration:
+    T_eef_camera: null
+    T_eef_tcp: null
+    note: "未完成标定"
+  # ★ 视觉参数、抓取手型和各形状安放槽示教位姿。
+  scene:
+    intrinsics: {fx: 0, fy: 0, cx: 0, cy: 0}
+    observe_pose: null
+    perception:
+      workspace_roi: [0, 0, 640, 480]
+      min_depth_m: 0.15
+      max_depth_m: 1.5
+      plane_threshold_m: 0.006
+      min_object_height_m: 0.012
+      max_object_height_m: 0.16
+      min_component_area_px: 500
+      max_component_area_px: 50000
+      ransac_iterations: 160
+      min_plane_inlier_ratio: 0.35
+    grasp:
+      rpy: [-3.141, -1.552, 3.141]
+      pregrasp_clearance_m: 0.10
+      grasp_top_offset_m: -0.02
+      lift_clearance_m: 0.12
+      local_refine_max_xy_m: 0.025
+      min_shape_confidence: 0.78
+    hand_grasps:
+      block: null
+      hexagonal_prism: null
+      triangular_prism: null
+      cylinder: null
+    destinations:
+      block: {approach_pose: null, place_pose: null, retreat_pose: null}
+      hexagonal_prism: {approach_pose: null, place_pose: null, retreat_pose: null}
+      triangular_prism: {approach_pose: null, place_pose: null, retreat_pose: null}
+      cylinder: {approach_pose: null, place_pose: null, retreat_pose: null}
   observe_vel: 0.15
   fine_vel: 0.05
   preflight: true
@@ -102,6 +161,8 @@ safety:
   disable_arm_on_emergency: false       # 紧急情况是否失能机械臂（⚠️ 会掉臂！默认只报警不动作）
   effort_guard_enabled: false           # 力矩绝对值上限急停（默认关；需现场标定阈值后再开）
   effort_guard_threshold: 10.0          # 力矩绝对值上限（Nm，任一关节 |effort| 超过此值触发急停）
+  feedback_age_stop_s: 2.0              # 连续超过此值才进入急停确认，避免运动期间假急停
+  feedback_fault_confirmations: 4       # 相邻轮询连续异常次数（0.3 s 间隔时约 1.2 s）
 
 debug:
   dump_enabled: false                   # ★ 任务执行时落盘相机帧（排查用）；正式赛建议 false 减开销

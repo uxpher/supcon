@@ -4,10 +4,8 @@
 不需要任何真实硬件。运行：
     python tests/smoke_mock.py
 """
-import json
 import pathlib
 import sys
-import tempfile
 import threading
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -58,9 +56,7 @@ def main():
              "flick_end_pose": pose(0.46, y=-0.14)},
         ],
     }
-    tmp = pathlib.Path(tempfile.mkdtemp()) / "panel.json"
-    tmp.write_text(json.dumps(panel, ensure_ascii=False), encoding="utf-8")
-    cfg.task1.panel_file = str(tmp)
+    cfg.task1.panel = panel
 
     arm = B9Client(cfg.arm)
     hand = O10Client(cfg.hand)

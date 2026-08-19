@@ -54,6 +54,7 @@ DEFAULTS: dict = {
         "height": 480,
     },
     "task1": {
+        "panel": None,  # 主配置；panel_file 仅兼容旧版现场文件
         "panel_file": "config/runtime/panel.json",
         "approach_vel": 0.15,
         "fine_vel": 0.05,
@@ -70,19 +71,30 @@ DEFAULTS: dict = {
         "action_change_min": 12.0,
     },
     "task2": {
+        "scene": None,  # 主配置；scene_file 仅兼容旧版现场文件
         "scene_file": "config/runtime/task2.json",
         "observe_vel": 0.15,
         "fine_vel": 0.05,
         "preflight": True,
     },
     "task3": {
+        "scene": None,        # 主配置；scene_file 仅兼容旧版现场文件
+        "calibration": None,  # Task3 手眼/TCP 标定，主配置
         "scene_file": "config/runtime/task3.json",
         "observe_vel": 0.15,
         "fine_vel": 0.05,
         "preflight": True,
     },
-    "safety": {"poll_interval_s": 0.3, "disable_arm_on_emergency": False,
-               "effort_guard_enabled": False, "effort_guard_threshold": 10.0},
+    "safety": {
+        "poll_interval_s": 0.3,
+        "disable_arm_on_emergency": False,
+        "effort_guard_enabled": False,
+        "effort_guard_threshold": 10.0,
+        # HTTP 查询的 feedback_age 并非控制器的实时心跳；需持续足够久并连续
+        # 多次异常才允许阻断任务。
+        "feedback_age_stop_s": 2.0,
+        "feedback_fault_confirmations": 4,
+    },
     "debug": {
         "dump_enabled": False,       # 任务执行时是否把相机帧/深度可视化图落盘（调试用）
         "dump_dir": "runtime/debug",  # task1/2/3 的 RGB 落盘根目录（下分 color/ocr/shape）
@@ -170,6 +182,7 @@ class CameraConfig:
 
 @dataclass
 class Task1Config:
+    panel: dict | None = None
     panel_file: str = "config/runtime/panel.json"
     approach_vel: float = 0.15
     fine_vel: float = 0.05
@@ -188,6 +201,7 @@ class Task1Config:
 
 @dataclass
 class Task2Config:
+    scene: dict | None = None
     scene_file: str = "config/runtime/task2.json"
     observe_vel: float = 0.15
     fine_vel: float = 0.05
@@ -196,6 +210,8 @@ class Task2Config:
 
 @dataclass
 class Task3Config:
+    scene: dict | None = None
+    calibration: dict | None = None
     scene_file: str = "config/runtime/task3.json"
     observe_vel: float = 0.15
     fine_vel: float = 0.05
@@ -208,6 +224,8 @@ class SafetyConfig:
     disable_arm_on_emergency: bool = False
     effort_guard_enabled: bool = False
     effort_guard_threshold: float = 10.0
+    feedback_age_stop_s: float = 2.0
+    feedback_fault_confirmations: int = 4
 
 
 @dataclass
@@ -264,3 +282,27 @@ def load_config(path: str | None = None) -> AppConfig:
         debug=_obj(DebugConfig, merged["debug"]),
         logging=dict(merged["logging"]),
     )
+
+
+def config_yaml_path() -> Path:
+    """项目正式配置文件路径（现场标定脚本的唯一写入目标）。"""
+    return PROJECT_ROOT / "config" / "config.yaml"
+
+
+def write_task_value(task: str, key: str, value, path: str | Path | None = None) -> Path:
+    """把一个任务字段安全地写回 config.yaml。
+
+    标定工具使用此函数写 ``task1.panel`` 和 ``task3.calibration``，从而不再
+    产生散落在 runtime 下的 JSON 配置文件。PyYAML 会规范化 YAML 的排版；
+    因此建议将现场配置纳入版本控制或在标定前备份。
+    """
+    target = Path(path) if path is not None else config_yaml_path()
+    with open(target, encoding="utf-8") as stream:
+        data = yaml.safe_load(stream) or {}
+    section = data.setdefault(task, {})
+    if not isinstance(section, dict):
+        raise ValueError(f"config.yaml 的 {task} 必须是对象")
+    section[key] = value
+    with open(target, "w", encoding="utf-8") as stream:
+        yaml.safe_dump(data, stream, allow_unicode=True, sort_keys=False, default_flow_style=False)
+    return target

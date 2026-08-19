@@ -3,7 +3,7 @@
 
     python scripts/05_test_task3.py [--effort-guard] [--effort-guard-threshold X]
 
-需先完成 task3.json 现场标定，否则会安全返回 success=false。
+需先完成 config.yaml 的 task3.scene / task3.calibration 现场标定，否则会安全返回 success=false。
 """
 import argparse
 import pathlib

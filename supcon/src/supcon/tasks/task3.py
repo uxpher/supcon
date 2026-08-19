@@ -9,13 +9,12 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 
 import numpy as np
 
-from .common import PickPlaceRunner, load_scene
+from .common import PickPlaceRunner, scene_from_task_config
 from ..utils import matrix_to_pose, pose_to_matrix
-from ..vision.handeye import camera_to_base, load_calibration
+from ..vision.handeye import calibration_from_data, camera_to_base, load_calibration
 from ..vision.tabletop import TabletopDetector, TabletopObject
 
 log = logging.getLogger("task3")
@@ -78,7 +77,7 @@ class Task3Runner(PickPlaceRunner):
             raise RuntimeError("min_shape_confidence 必须在 (0,1] 内")
 
     def _intrinsics(self, scene: dict) -> dict:
-        """真机优先采用 SDK 内参；文件模式可在 task3.json 写入内参。"""
+        """真机优先采用 SDK 内参；文件模式可在 task3.scene 写入内参。"""
         intrinsics = getattr(self.camera, "intrinsics", None) or scene.get("intrinsics")
         if not intrinsics and self.cfg.camera.intrinsics_file:
             path = self.cfg.resolve(self.cfg.camera.intrinsics_file)
@@ -88,7 +87,7 @@ class Task3Runner(PickPlaceRunner):
             except (OSError, json.JSONDecodeError) as exc:
                 raise RuntimeError(f"无法读取相机内参 {path}: {exc}") from exc
         if not isinstance(intrinsics, dict):
-            raise RuntimeError("缺少相机内参；真机请确认 SDK 可读内参，离线请在 task3.json 填 intrinsics")
+            raise RuntimeError("缺少相机内参；真机请确认 SDK 可读内参，离线请在 task3.scene 填 intrinsics")
         try:
             out = {k: float(intrinsics[k]) for k in ("fx", "fy", "cx", "cy")}
         except (KeyError, TypeError, ValueError) as exc:
@@ -174,15 +173,19 @@ class Task3Runner(PickPlaceRunner):
         ready = False
         try:
             # 先校验配置和标定。任何错误发生在 ready() 前，避免默认安全位也被下发。
-            scene = load_scene(self.cfg.resolve(self.task_cfg.scene_file))
+            scene = scene_from_task_config(self.cfg, self.task_cfg, "3")
             self._validate_scene(scene)
-            calibration_file = scene.get("calibration_file")
-            if not calibration_file:
-                raise RuntimeError("task3 缺少 calibration_file")
-            calibration_path = calibration_file if os.path.isabs(calibration_file) else self.cfg.resolve(calibration_file)
-            calibration = load_calibration(calibration_path, require_tcp=True)
-            if calibration is None:
-                raise RuntimeError("手眼/TCP 标定文件不存在")
+            inline_calibration = getattr(self.task_cfg, "calibration", None)
+            if isinstance(inline_calibration, dict):
+                calibration = calibration_from_data(inline_calibration, require_tcp=True)
+            else:
+                # 只服务旧版 scene 内 calibration_file 的升级兼容。
+                calibration_file = scene.get("calibration_file")
+                if not calibration_file:
+                    raise RuntimeError("task3.calibration 缺少 T_eef_camera / T_eef_tcp")
+                calibration = load_calibration(self.cfg.resolve(calibration_file), require_tcp=True)
+                if calibration is None:
+                    raise RuntimeError("手眼/TCP 标定文件不存在")
             intrinsics = self._intrinsics(scene)
             detector = TabletopDetector(scene["perception"])
             grasp_cfg = scene["grasp"]

@@ -1,8 +1,8 @@
 # Task2 / Task3 现场标定与运行指南
 
-这两个任务均已接入 `/api/task2/execute` 和 `/api/task3/execute`。代码**不会使用示例坐标执行真机动作**：缺少正式标定文件或字段时会安全返回 `success=false`。
+这两个任务均已接入 `/api/task2/execute` 和 `/api/task3/execute`。代码**不会使用示例坐标执行真机动作**：缺少 `config.yaml` 中的正式标定字段时会安全返回 `success=false`。
 
-所有位姿记录都**只写 `check_pos/` 待核验文件、不改正式配置**，肉眼审核后手动填入 `task2.json` / `task3.json` / `config.yaml`。
+所有位姿记录都**只写 `check_pos/` 待核验文件、不改正式配置**，肉眼审核后手动填入 `config.yaml` 的 `task2.scene` / `task3.scene`。
 
 ## 位姿（pose）含义速查
 
@@ -39,14 +39,14 @@ python scripts/09_record_arm_pose.py --task 3 --key observe_pose
 
 规则基线：数字仅在顶面；必须按 `1 → 2 → 3 → 4` 顺序抓取；将物体放至指定台面，并复现其初始竖直姿态。
 
-1. 复制模板：`mkdir -p config/runtime && cp config/templates/task2.example.json config/runtime/task2.json`。
+1. `config.yaml` 已内置 `task2.scene` 模板；直接在其中填写示教位姿。
 2. 数字识别用**整图 OCR**：在观察位拍一张顶视图，OCR 按文本框 x 坐标左→右读出 4 个数字，依次对应方位 `left → midleft → midright → right`。**无需 ROI、无需数字模板**。
 3. 录制 Task2 长方体抓取手型（4 块同尺寸，独立于 Task3）：
    ```bash
    python scripts/08_record_hand_pose.py --set 0.5,0.5,0.5,1,0,0,0,0,0,0   # 试摆
    python scripts/08_record_hand_pose.py --record-task2-grasp              # 记录
    python scripts/08_record_hand_pose.py --apply-task2-grasp               # 回放校验
-   # 审核后填入 task2.json 的 default_hand_grasp
+   # 审核后填入 config.yaml 的 task2.scene.default_hand_grasp
    ```
 4. 示教每个源槽位的抓取三段位姿（`10` 脚本，`--source left/midleft/midright/right`）：
    ```bash
@@ -72,9 +72,9 @@ Task2 仅在观察位读一次整图 OCR。若 OCR 未能读出恰好 `{1,2,3,4}
 
 运行流程是：全局观察位采集同帧、对齐的 RGB-D → RANSAC 分割桌面和四个突出物 → 顶面轮廓分类 → 根据实时 B9 末端位姿及手眼外参转换到基座系 → 预抓高度复拍校正 → 竖直抓/放。识别到数量、类别、置信度或位置偏差不符合要求时会停止，不猜测坐标。
 
-1. 复制模板：`mkdir -p config/runtime && cp config/templates/task3.example.json config/runtime/task3.json`。
+1. `config.yaml` 已内置 `task3.scene` 和 `task3.calibration` 模板；直接在其中填写。
 2. 使用 `09` 记录唯一的全局 `observe_pose`；它须能完整看到桌面工作区，且高度高于所有木块。填写 `perception.workspace_roi`、深度范围、实际 RGB 内参（真机可由 SDK 自动读取）。
-3. 完成手眼标定：`python scripts/04_calibrate_handeye.py` 会写入 `T_eef_camera`。随后测量实际抓取 TCP，并在 `calibration.json` 补充 `T_eef_tcp`。两矩阵均须用多点反投影与低速试抓复核；缺少任一个字段，Task3 会拒绝使能/运动。
+3. 完成手眼标定：`python scripts/04_calibrate_handeye.py` 会写入 `task3.calibration.T_eef_camera`。随后测量实际抓取 TCP，并在 `config.yaml` 补充 `task3.calibration.T_eef_tcp`。两矩阵均须用多点反投影与低速试抓复核；缺少任一个字段，Task3 会拒绝使能/运动。
 4. 现场确认槽位文字后，示教各形状槽的放置三段（`10` 脚本，`--dest 形状名`）：
 
    ```bash
@@ -103,5 +103,5 @@ Task3 按更新后的竖直摆放规则实现，**不执行旧方案中的空中
 - O10 开合、抓取手型和 B9 控制 TCP 均已在真机确认。
 - 相机像素格式、画面方向、ROI 和赛场光照已复核。
 - 所有示教位姿均通过 `plan_only`，且正式执行不会出现 `OMPL`。
-- 所有 `check_pos/` 待核验文件已审核并填入正式配置（`config.yaml` / `task2.json` / `task3.json`）。
-- Task1 的 `config/runtime/panel.json`、Task2 的 `config/runtime/task2.json`、Task3 的 `config/runtime/task3.json` 均已随部署包备份。
+- 所有 `check_pos/` 待核验文件已审核并填入正式配置 `config.yaml`。
+- 已备份 `config/config.yaml` 与标定图片。

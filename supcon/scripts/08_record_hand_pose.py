@@ -5,7 +5,7 @@
    用 --set 发候选手型 → 人工看手指 → 反复调 → 满意后用 --record 记录。
 
 本脚本只读写独立的"待核验文件" check_pos/灵巧手_手型_待核验.json，
-**绝不修改 config.yaml / task3.json / task2.json**。审核后请手动把数值填入正式配置。
+**绝不修改 config.yaml**。审核后请手动把数值填入正式配置的 task2.scene / task3.scene。
 
 用法：
   # ① 打印当前手型（归一化 position + 弧度 joint_rad）
@@ -17,10 +17,10 @@
   # ③ 满意后，把当前手型记录到待审核文件（open_pose/close_pose/point_pose）
   python scripts/08_record_hand_pose.py --record point_pose
 
-  # ④ 记录某个形状的抓取手型（Task3 用，对齐 task3.json 的 hand_grasps 字段）
+  # ④ 记录某个形状的抓取手型（Task3 用，对齐 config.yaml 的 task3.scene.hand_grasps 字段）
   python scripts/08_record_hand_pose.py --record-grasp block
 
-  # ⑤ 记录任务2长方体的抓取手型（4 块同尺寸，独立于任务3 → task2.json default_hand_grasp）
+  # ⑤ 记录任务2长方体的抓取手型（4 块同尺寸，独立于任务3 → task2.scene.default_hand_grasp）
   python scripts/08_record_hand_pose.py --record-task2-grasp
 
   # ⑥ 查看待审核文件全部内容
@@ -71,7 +71,7 @@ EMPTY = {
         "hand.open_pose=张手；hand.close_pose=握拳；hand.point_pose=食指伸直点按。"
         "task2_hand_grasp=任务2长方体抓取手型（4 块同尺寸，独立于任务3）。"
         "task3_hand_grasps.*=任务3各形状的抓取手型。"
-        "审核后手动填入 config.yaml 的 hand.*、task2.json 的 default_hand_grasp 或 task3.json 的 hand_grasps.*。"
+        "审核后手动填入 config.yaml 的 hand.*、task2.scene.default_hand_grasp 或 task3.scene.hand_grasps.*。"
         "本文件不改动任何正式配置。"
     ),
     "hand": {k: None for k in HAND_KEYS},
@@ -186,7 +186,7 @@ def main():
         p = _save_review(cfg, data)
         print(f"已记录 task3_hand_grasps.{a.record_grasp} = {[round(x, 3) for x in pos]}")
         print(f"→ 已写入待审核文件: {p}")
-        print("→ 未改动 task3.json，审核后请手动填入正式配置")
+        print("→ 未改动 config.yaml，审核后请手动填入 task3.scene.hand_grasps")
         return
 
     if a.record_task2_grasp:
@@ -196,7 +196,7 @@ def main():
         p = _save_review(cfg, data)
         print(f"已记录 task2_hand_grasp = {[round(x, 3) for x in pos]}")
         print(f"→ 已写入待审核文件: {p}")
-        print("→ 未改动 task2.json，审核后请手动填入 task2.json 的 default_hand_grasp")
+        print("→ 未改动 config.yaml，审核后请手动填入 task2.scene.default_hand_grasp")
         return
 
     if a.apply:

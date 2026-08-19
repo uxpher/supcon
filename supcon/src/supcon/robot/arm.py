@@ -54,8 +54,13 @@ class B9Client:
     def controllers(self) -> dict:
         return self._get("/api/controllers")
 
-    def healthy(self) -> tuple[bool, str]:
-        """电机健康检查（运动前必须通过）。返回 (是否健康, 原因)。"""
+    def healthy(self, max_feedback_age_s: float = 2.0) -> tuple[bool, str]:
+        """电机健康检查（运动前必须通过）。返回 (是否健康, 原因)。
+
+        ``feedback_age`` 是 HTTP 服务采样数据的年龄，不是底层驱动的硬实时
+        心跳；在运动或服务负载较高时 0.1--0.5 s 属于正常抖动。因此默认只把
+        持续超过 2 s 的陈旧反馈视为不健康。安全线程还会做连续确认。
+        """
         try:
             m = self.motors()
         except Exception as e:
@@ -67,7 +72,7 @@ class B9Client:
                 return False, f"{name} fault={j.get('fault')}"
             if j.get("has_feedback") != 1:
                 return False, f"{name} 无反馈"
-            if j.get("feedback_age", 1.0) >= 0.1:
+            if float(j.get("feedback_age", float("inf"))) >= max_feedback_age_s:
                 return False, f"{name} 反馈超龄 {j.get('feedback_age')}"
         return True, "ok"
 

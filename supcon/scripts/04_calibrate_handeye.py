@@ -3,16 +3,15 @@
 
 原理：T_world_camera = T_world_eef · T_eef_camera，解出固定外参 T_eef_camera。
 流程：臂依次到采集位姿 → 拍照检测 ChArUco 板 → 记录 T_base_eef 与板位姿
-     → cv2.calibrateHandEye 解 AX=XB → 存 config/runtime/calibration.json。
+     → cv2.calibrateHandEye 解 AX=XB → 写入 config.yaml 的 task3.calibration。
 
 ⚠️ 注意事项：
 - 采集位姿要空间分布好、旋转变化充分（避免姿态近似平行，否则 AX=XB 退化）；
 - 解出的矩阵方向要用多点反投影验证后再用；
 - 本脚本只能求 T_eef_camera；Task3 还需要单独示教/测量实际抓取 TCP，
-  并在 calibration.json 增加 T_eef_tcp 后才会允许运动；
+  并在 task3.calibration 增加 T_eef_tcp 后才会允许运动；
 - Task1 开关位姿是直接示教的，本脚本纯属为后续任务准备。
 """
-import json
 import pathlib
 import sys
 import time
@@ -22,11 +21,10 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from supcon.config import PROJECT_ROOT, load_config
+from supcon.config import load_config, write_task_value
 from supcon.robot.arm import B9Client
 from supcon.utils import pose_to_matrix, setup_logging
 from supcon.vision.camera import make_camera
-from supcon.vision.handeye import save_calibration
 
 # 采集位姿（示例：X=0.275 平面，真机上按实际工作域修改）
 COLLECT_POSES = [
@@ -105,11 +103,12 @@ def main():
     # OpenCV 返回 camera→gripper；B9 的 gripper 即 EEF，因此它正是本项目
     # 使用的 T_eef_camera（相机坐标点左乘后落在末端坐标系）。
     T_eef_camera = T_cam2grip
-    out = PROJECT_ROOT / "config" / "runtime" / "calibration.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    save_calibration(str(out), T_eef_camera,
-                     note="仅含 T_eef_camera；使用前必须多点反投影验证，并人工补充 T_eef_tcp。")
-    print(f"已保存 {out}")
+    calibration = dict(cfg.task3.calibration or {})
+    calibration["T_eef_camera"] = T_eef_camera.tolist()
+    calibration.setdefault("T_eef_tcp", None)
+    calibration["note"] = "仅含 T_eef_camera；使用前必须多点反投影验证，并人工补充 T_eef_tcp。"
+    out = write_task_value("task3", "calibration", calibration)
+    print(f"已写入 {out} 的 task3.calibration")
     print("⚠️ 请用多点反投影验证外参，并人工补充实际抓取 TCP 的 T_eef_tcp；"
           "Task3 在该字段缺失时会安全拒绝运动。")
 

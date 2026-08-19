@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import copy
 
 from ..robot.arm import ArmError
 from ..robot.hand import HandError
@@ -17,6 +18,23 @@ def load_scene(path: str) -> dict:
         raise FileNotFoundError(f"缺少现场标定文件 {path}；请从对应 .example.json 复制并完成示教")
     with open(path, encoding="utf-8") as stream:
         return json.load(stream)
+
+
+def scene_from_task_config(cfg, task_cfg, task_name: str) -> dict:
+    """取得任务场景，优先使用 config.yaml 内联的 ``scene``。
+
+    ``scene_file`` 只保留为升级旧部署时的兼容回退；新配置和所有运行脚本都不再
+    依赖 ``config/runtime/*.json``。即使内联场景尚未填完，也原样返回并由调用方
+    在任何机械臂动作前做严格校验。
+    """
+    scene = getattr(task_cfg, "scene", None)
+    if isinstance(scene, dict):
+        return copy.deepcopy(scene)
+    legacy_path = getattr(task_cfg, "scene_file", "")
+    if legacy_path:
+        log.warning("Task%s 正在使用已弃用的 scene_file；请迁移到 config.yaml 的 task%s.scene", task_name, task_name)
+        return load_scene(cfg.resolve(legacy_path))
+    raise RuntimeError(f"Task{task_name} 缺少 config.yaml 中的 task{task_name}.scene")
 
 
 class PickPlaceRunner:

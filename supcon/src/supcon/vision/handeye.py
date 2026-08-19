@@ -31,7 +31,7 @@ def _as_transform(value, name: str) -> np.ndarray:
 
 
 def load_calibration(path: str, require_tcp: bool = False) -> dict | None:
-    """读取 calibration.json。
+    """读取旧版 calibration.json（新配置应使用 task3.calibration）。
 
     ``T_eef_camera`` 表示相机坐标到 B9 末端坐标；Task3 动态抓取还必须
     有 ``T_eef_tcp``（实际抓取 TCP 到 B9 末端的固定变换），否则不能把
@@ -42,7 +42,16 @@ def load_calibration(path: str, require_tcp: bool = False) -> dict | None:
         return None
     with open(path, encoding="utf-8") as f:
         d = json.load(f)
-    if "T_eef_camera" not in d:
+    return calibration_from_data(d, require_tcp=require_tcp)
+
+
+def calibration_from_data(d: dict, require_tcp: bool = False) -> dict:
+    """严格校验 config.yaml 内联的手眼/TCP 标定，并转为 numpy 矩阵。"""
+    if not isinstance(d, dict):
+        raise ValueError("标定配置必须是对象")
+    # 拷贝，避免将 numpy 数组回写到 AppConfig 中，影响后续 YAML/日志操作。
+    d = dict(d)
+    if "T_eef_camera" not in d or d.get("T_eef_camera") is None:
         raise ValueError("标定文件缺少 T_eef_camera")
     d["T_eef_camera"] = _as_transform(d["T_eef_camera"], "T_eef_camera")
     if require_tcp:

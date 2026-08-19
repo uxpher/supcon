@@ -7,10 +7,10 @@
 
 ## 0. 总体思路（先理解再动手）
 
-1. **视觉只回答一个问题：「哪盏灯亮」**。面板固定，3 盏灯在图像中的位置预先标定存进 `config/runtime/panel.json`；运行时连续多帧比较 ROI 亮度（可选使用三灯熄灭基线），不需要模型、不需要手眼标定。
-2. **动作位置全靠示教**。开关的「上方/压到底/拨动起止」位姿，在真机上手动摆好 → 记录末端位姿存进 `panel.json`。这是新手最稳的路线：视觉不参与 3D 坐标计算。
+1. **视觉只回答一个问题：「哪盏灯亮」**。面板固定，3 盏灯在图像中的位置预先标定存进 `config.yaml` 的 `task1.panel`；运行时连续多帧比较 ROI 亮度（可选使用三灯熄灭基线），不需要模型、不需要手眼标定。
+2. **动作位置全靠示教**。开关的「上方/压到底/拨动起止」位姿，在真机上手动摆好 → 记录末端位姿存进 `task1.panel`。这是新手最稳的路线：视觉不参与 3D 坐标计算。
 3. **每步都走直线 + 低速**。先 `plan_only` 预览可达性，执行后检查 message 是否含 `OMPL`（含 = 回退成自由路径，危险）。
-4. **后台安全监控常开**：手过流立即开手、臂电机异常立即停后续动作。
+4. **后台安全监控常开**：手过流、臂明确 `fault` 立即停后续动作；HTTP 反馈年龄异常须持续超过配置阈值且连续确认，避免运动期间假急停。
 
 ## 1. 环境准备
 
@@ -51,7 +51,7 @@ python scripts/01_hand_semantics.py
 3. 肉眼审核 `check_pos/机械臂_安全位观察位_待核验.json` 后，手动填入 `config.yaml` 的 `arm.observe_pose` / `arm.task1_safe_pose`。
    （提示：观察位尽量让相机正对面板；安全位放在直线安全工作域内，Y∈[-0.28,-0.04]、Z∈[0.44,0.52] 那类区域，可参考文档验证过的固定姿态 roll=-3.141/pitch=-1.552/yaw=3.141。）
 
-### 3.4 面板灯位标定（panel.json → lamps）
+### 3.4 面板灯位标定（config.yaml 的 task1.panel → lamps）
 
 **白底面板推荐做差法**（背景板是白色时，旧 `--mode auto` 会失败）：
 
@@ -71,7 +71,7 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 
 （`--mode auto` 仅适用深色背景；摄像头模式由 `camera.mode` 决定，真机改 `real`。）
 
-### 3.5 开关位姿示教（panel.json → switches）★ 核心工作量
+### 3.5 开关位姿示教（config.yaml 的 task1.panel → switches）★ 核心工作量
 对每个开关（预设：开关 0、2 是按钮，开关 1 是中间拨杆）：
 
 | 步骤 | 操作 | 记录命令 |
@@ -84,7 +84,7 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 | 6 | 拨动开关正上方 | `python scripts/02_record_pose.py --switch 1 --key approach_pose` |
 
 要点：
-- 面板文件里 3 个开关的类型已预设为 button/toggle/button（中间是拨杆），若实际排列不同，直接改 `panel.json`；每盏灯还必须显式填写 `switch_id`，**不能依赖灯与开关的左右顺序相同**；
+- 面板配置里 3 个开关的类型已预设为 button/toggle/button（中间是拨杆），若实际排列不同，直接改 `config.yaml` 的 `task1.panel`；每盏灯还必须显式填写 `switch_id`，**不能依赖灯与开关的左右顺序相同**；
 - **拨动方向**必须在示教时就在实物上确认（flick_start → flick_end 的矢量就是拨动方向）；
 - 摆位时把灵巧手也摆成 `point_pose`（食指伸直）再记位姿，保证「记录位姿时的姿态 = 执行时的姿态」；
 - 每次记录前确认当前无报警、记录后立即 `--verify` 一次：
@@ -95,7 +95,7 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 
 ### 3.5.1 三灯熄灭基线（推荐）
 
-做差标定（`--mode diff`）已经顺手把 ROI 基线写入 `panel.json`。若用 manual 模式标了灯位，可再在三盏灯均熄灭、相机位姿固定时单独补基线：
+做差标定（`--mode diff`）已经顺手把 ROI 基线写入 `config.yaml`。若用 manual 模式标了灯位，可再在三盏灯均熄灭、相机位姿固定时单独补基线：
 
 ```bash
 python scripts/03_calibrate_panel.py --save-baseline

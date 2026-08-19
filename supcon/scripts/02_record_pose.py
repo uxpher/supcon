@@ -28,17 +28,16 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from supcon.config import load_config
+from supcon.config import load_config, write_task_value
 from supcon.robot.arm import ArmError, B9Client
-from supcon.tasks.task1 import load_panel
 from supcon.utils import setup_logging
 
 POSE_KEYS = ("approach_pose", "press_pose", "flick_start_pose", "flick_end_pose")
 
 
 def save_panel(cfg, panel):
-    with open(cfg.resolve(cfg.task1.panel_file), "w", encoding="utf-8") as f:
-        json.dump(panel, f, ensure_ascii=False, indent=2)
+    path = write_task_value("task1", "panel", panel)
+    print(f"已写入 {path} 的 task1.panel")
 
 
 def main():
@@ -56,7 +55,9 @@ def main():
     cfg = load_config()
     setup_logging("INFO", None)
     arm = B9Client(cfg.arm)
-    panel = load_panel(cfg.resolve(cfg.task1.panel_file))
+    if not isinstance(cfg.task1.panel, dict):
+        sys.exit("config.yaml 缺少 task1.panel；请先恢复配置模板")
+    panel = cfg.task1.panel
 
     if a.goto:
         ok, why = arm.healthy()

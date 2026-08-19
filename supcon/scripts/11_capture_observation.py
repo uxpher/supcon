@@ -34,7 +34,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from supcon.config import load_config
 from supcon.robot.arm import ArmError, B9Client
-from supcon.tasks.common import load_scene
+from supcon.tasks.common import scene_from_task_config
 from supcon.utils import setup_logging
 from supcon.vision.camera import make_camera
 from supcon.vision.dump import depth_to_color
@@ -52,7 +52,7 @@ def _observe_pose(cfg, task: str) -> dict:
     if task == "1":
         return dict(cfg.arm.observe_pose)
     task_cfg = cfg.task2 if task == "2" else cfg.task3
-    scene = load_scene(cfg.resolve(task_cfg.scene_file))
+    scene = scene_from_task_config(cfg, task_cfg, task)
     pose = scene.get("observe_pose")
     if not isinstance(pose, dict):
         raise RuntimeError(f"Task{task} 场景文件缺少 observe_pose，拒绝自动移动")

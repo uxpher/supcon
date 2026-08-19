@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """步骤 10：Task2 源/目标动作位、Task3 目标槽位记录 → 写待核验文件。
 
-只写 check_pos/Task{2|3}_场景位姿_待核验.json，**不改 task2.json / task3.json**，审核后手动填。
+只写 check_pos/Task{2|3}_场景位姿_待核验.json，**不改 config.yaml**，审核后手动填入 task2.scene / task3.scene。
 （安全位/观察位由 09_record_arm_pose.py 记录，本脚本只管「抓取/放置」动作位。）
 
 待核验文件字段：
