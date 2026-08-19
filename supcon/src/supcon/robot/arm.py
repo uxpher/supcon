@@ -148,6 +148,11 @@ class B9Client:
         try:
             d = self._post("/api/end_effector", payload,
                            timeout=timeout or self.cfg.timeout)
+        except ArmError:
+            # 服务端的 “Invalid mode or missing target” 没有指出哪一个字段错；
+            # 记录完整请求体，现场可直接与接口文档/探测脚本的成功组合比对。
+            log.error("末端运动请求被拒绝：payload=%s", payload)
+            raise
         except requests.exceptions.Timeout as e:
             raise ArmError("运动超时（服务器 60s 上限，请提速或改用 WebSocket）") from e
         if not d.get("success"):
