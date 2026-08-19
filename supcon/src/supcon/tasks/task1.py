@@ -516,18 +516,12 @@ class Task1Runner:
 
             self.state = "switch_approach"
             # 长距离转运全程保持中性手型；仅在末端已经到达开关接近位后才
-            # 按开关类型切换为接触手型，避免手指在途中扫到面板、支架或工装。
+            # 切换为接触手型，避免手指在途中扫到面板、支架或工装。
             at_approach = self._move_linear(
                 at_observe, approach, f"观察位→开关 {self.switch_id} 接近位",
                 float(self.cfg.task1.approach_vel))
-            # 仅按钮使用食指点按。拨杆保持中性手型，避免错误伸出的食指
-            # 在拨动轨迹或面板边缘发生干涉。
-            if switch["type"] == "toggle":
-                self._set_hand(
-                    getattr(self.cfg.hand, "neutral_pose", self.cfg.hand.open_pose),
-                    "拨杆中性姿态")
-            else:
-                self._set_hand(self.cfg.hand.point_pose, "点按姿态")
+            # 按钮和拨杆均使用点按手型；仅在机械臂到达接近位后才伸出食指。
+            self._set_hand(self.cfg.hand.point_pose, "点按/拨杆姿态")
             at_approach = self._operate_contact(switch)
 
             # 接触动作已由 _operate_contact 的末段机械臂退回接近位完成；

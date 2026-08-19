@@ -77,7 +77,7 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 要点：
 - 面板配置里 3 个开关的类型已预设为 button/toggle/button（中间是拨杆），若实际排列不同，直接改 `config.yaml` 的 `task1.panel`；每盏灯还必须显式填写 `switch_id`，**不能依赖灯与开关的左右顺序相同**；
 - **拨动方向**必须在示教时就在实物上确认（flick_start → flick_end 的矢量就是拨动方向）；
-- 摆位时，按钮使用 `point_pose`（食指伸直），拨杆使用 `neutral_pose`；记录位姿时的手型必须与执行时一致；
+- 摆位时，按钮和拨杆均使用 `point_pose`（食指伸直）；记录位姿时的手型必须与执行时一致；
 - 每次记录前确认当前无报警、记录后立即 `--verify` 一次：
   ```bash
   python scripts/02_record_pose.py --verify
@@ -133,7 +133,7 @@ python scripts/06_serve.py
 | `task1.press_dwell_s` | 按压停留 | 按钮行程长→加大 |
 | `arm.velocity_fast/slow` | 转运/贴脸速度 | 真机 ≤0.3，长距离可 0.25~0.3 |
 | `hand.point_pose` | 按压手型 | 01 脚本实测后定 |
-| `hand.neutral_pose` | 拨杆及长距离转运手型 | 中间拨杆执行时固定使用该手型 |
+| `hand.neutral_pose` | 长距离转运手型 | 接近面板前、接触完成后使用 |
 
 ## 5. 常见问题（FAQ）
 
