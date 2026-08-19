@@ -1,0 +1,137 @@
+# ============ 算法服务配置（Task1/2/3 现场标定全部整合在此文件） ============
+# 路径均相对 supcon/ 项目根目录。真机使用时改 base_url、位姿与手型即可。
+
+service:
+  host: 127.0.0.1          # 算法服务监听地址（竞赛软件填 http://127.0.0.1:5000）
+  port: 5000
+
+arm:
+  base_url: "http://192.168.0.22:8087"   # FTArm B9 机械臂服务地址
+  arm: "left_arm"                      # mode 字段：左臂用 left_arm（现场 /api/pose、/api/motors 均为 left_*）
+  pose_key: "right"                    # ⚠️ 目标位姿键/使能返回键：本服务器左臂仍用 right（网页面板 sendEE 实测）
+  default_rpy: [-3.141, -1.552, 3.141] # 推荐固定姿态（rad，文档验证过的直线工作域姿态）
+  velocity_fast: 0.20                  # 长距离转运速度（关节限速百分比，真机建议 ≤0.3）
+  velocity_slow: 0.05                  # 下压/拨动等贴脸动作速度
+  acceleration_scaling: 0.12
+  eef_step: 0.015                      # 直线插值步长（m，越小越贴近直线）
+  action_gap_s: 0.3                    # 相邻动作间隔：每次运动到位后额外静置（s）
+  timeout: 90                          # 运动请求客户端超时（s；服务器侧 60s 上限）
+  task1_safe_pose: {x: 0.0750, y: 0.1508, z: 0.4425, roll: -0.5170, pitch: -1.4092, yaw: 0.5542}   # ★ Task1 安全位
+  task2_safe_pose: {x: 0.0750, y: 0.1508, z: 0.4425, roll: -0.5170, pitch: -1.4092, yaw: 0.5542}   # ★ Task2 安全位
+  task3_safe_pose: {x: 0.0750, y: 0.1508, z: 0.4425, roll: -0.5170, pitch: -1.4092, yaw: 0.5542}   # ★ Task3 安全位
+  observe_pose: {x: 0.275, y: -0.16, z: 0.48, roll: -3.141, pitch: -1.552, yaw: 3.141}            # ★ Task1 观察位
+
+hand:
+  base_url: "http://192.168.0.22:8088"   # O10 灵巧手服务地址
+  # 实测语义（01_hand_semantics.py）：value=1 → 弯曲/握拳；value=0 → 伸展/张手
+  open_pose: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]    # 张手（全部伸展）
+  close_pose: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]   # 握拳（全部弯曲）
+  point_pose: [0.5, 0.5, 0.5, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5, 0.5]  # 指向：食指弯曲位(index_pip)=0，其余=0.5
+  neutral_pose: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]  # 观察位中性手型（全 0.5，避免遮挡）
+  torque_ma: 200                        # 限流闭合电流（mA，0-1000）
+  verify:                               # 抓取验证参数（Task2/3 用）
+    timeout_s: 3.0
+    settle_frames: 3
+    moved_tol: 0.02
+    near_full_tol: 0.05
+    poll_interval: 0.05
+
+camera:
+  mode: "real"                          # file=本地图片 / real=真机 Orbbec SDK / mock=模拟面板图
+  align_depth_to_color: true             # Task3 动态抓取：深度硬件对齐到 RGB，无法对齐时安全失败
+  width: 640
+  height: 480
+
+task1:
+  # —— 面板灯位（03_calibrate_panel.py 标定，cx/cy 为像素坐标）——
+  lamps:
+    - {id: 0, switch_id: 0, cx: 200, cy: 240, roi_radius: 18}
+    - {id: 1, switch_id: 1, cx: 320, cy: 240, roi_radius: 18}
+    - {id: 2, switch_id: 2, cx: 440, cy: 240, roi_radius: 18}
+  # —— 开关（02_record_pose.py 示教动作位姿；switch_id 已绑定到灯）——
+  switches:
+    - {id: 0, type: button, approach_pose: null, press_pose: null}
+    - {id: 1, type: toggle, approach_pose: null, flick_start_pose: null, flick_end_pose: null}
+    - {id: 2, type: button, approach_pose: null, press_pose: null}
+  baseline_scores: null                 # 三灯熄灭基线（03 脚本 --save-baseline 写入）
+  approach_vel: 0.15                    # 去观察位/开关上方速度
+  fine_vel: 0.05                        # 下压/拨动速度（慢=稳=安全）
+  press_dwell_s: 0.3                    # 按压停留时间
+  max_retry: 1                          # 亮灯检测失败重试次数
+  lamp_margin: 5.0                      # 亮灯 ROI 亮度需超过次亮 ROI 的最小差值（0-255）
+  lamp_abs_min: 60.0                    # 亮灯 ROI 亮度绝对下限（0-255）
+  roi_radius: 18                        # 灯 ROI 半径（像素）
+  diff_max_dist: 250.0                  # 最大判定误差：做差判定时亮斑到灯位中心的最大允许距离（px）
+  preview_first_move: true              # 首段运动先 plan_only 预览
+  confirm_frames: 3                     # 连续相同检测结果才认定亮灯
+  frame_interval_s: 0.12
+  action_verify: "motion_only"          # 现场确认灯会变化后可改为 lamp_change
+  action_change_min: 12.0
+
+task2:
+  observe_pose: {x: 0.275, y: -0.16, z: 0.50, roll: -3.141, pitch: -1.552, yaw: 3.141}   # ★ 观察位（拍全 4 个槽位顶面）
+  default_hand_grasp: [1, 1, 1, 0.5, 0.2, 0.2, 0.5, 0.2, 0.5, 0.2]   # Task2 长方体抓取手型（08 脚本 --record-task2-grasp）
+  sources:
+    left:     {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+    midleft:  {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+    midright: {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+    right:    {approach_pose: null, grasp_tcp_pose: null, lift_pose: null, hand_grasp: null}
+  table_placements:
+    "1": {approach_pose: null, place_pose: null, retreat_pose: null}
+    "2": {approach_pose: null, place_pose: null, retreat_pose: null}
+    "3": {approach_pose: null, place_pose: null, retreat_pose: null}
+    "4": {approach_pose: null, place_pose: null, retreat_pose: null}
+  observe_vel: 0.15
+  fine_vel: 0.05
+  preflight: true
+
+task3:
+  calibration_file: "config/runtime/calibration.json"   # 手眼/TCP 标定（04_calibrate_handeye.py）
+  intrinsics: {fx: 0, fy: 0, cx: 0, cy: 0}             # 相机内参（真机自动读 SDK；离线可填）
+  observe_pose: null                                    # ★ 全局观察位（拍全桌面）
+  perception:
+    workspace_roi: [0, 0, 640, 480]
+    min_depth_m: 0.15
+    max_depth_m: 1.5
+    plane_threshold_m: 0.006
+    min_object_height_m: 0.012
+    max_object_height_m: 0.16
+    min_component_area_px: 500
+    max_component_area_px: 50000
+    ransac_iterations: 160
+    min_plane_inlier_ratio: 0.35
+  grasp:
+    rpy: [-3.141, -1.552, 3.141]
+    pregrasp_clearance_m: 0.1
+    grasp_top_offset_m: -0.02
+    lift_clearance_m: 0.12
+    local_refine_max_xy_m: 0.025
+    min_shape_confidence: 0.78
+  hand_grasps:
+    block: null
+    hexagonal_prism: null
+    triangular_prism: null
+    cylinder: null
+  destinations:
+    block: {approach_pose: null, place_pose: null, retreat_pose: null}
+    hexagonal_prism: {approach_pose: null, place_pose: null, retreat_pose: null}
+    triangular_prism: {approach_pose: null, place_pose: null, retreat_pose: null}
+    cylinder: {approach_pose: null, place_pose: null, retreat_pose: null}
+  observe_vel: 0.15
+  fine_vel: 0.05
+  preflight: true
+
+safety:
+  poll_interval_s: 0.3                  # 后台安全监控轮询间隔
+  disable_arm_on_emergency: false       # 紧急情况是否失能机械臂（⚠️ 会掉臂！默认只报警不动作）
+  effort_guard_enabled: false           # 力矩绝对值上限急停（默认关；需现场标定阈值后再开）
+  effort_guard_threshold: 10.0          # 力矩绝对值上限（Nm）
+
+debug:
+  dump_enabled: false                   # ★ 任务执行时落盘相机帧（排查用）；正式赛建议 false 减开销
+  dump_dir: "runtime/debug"             # task1→color/ task2→ocr/ task3→shape/ 的根目录
+  depth_vis_dir: "img_vis"              # task3 深度可视化伪彩图目录（→ supcon/img_vis/）
+
+logging:
+  level: "INFO"
+  file: "runtime/logs/service.log"

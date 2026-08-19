@@ -40,6 +40,7 @@ DEFAULTS: dict = {
         "open_pose": [1] * 10,
         "close_pose": [0] * 10,
         "point_pose": [0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "neutral_pose": [0.5] * 10,
         "torque_ma": 200,
         "verify": {"timeout_s": 3.0, "settle_frames": 3, "moved_tol": 0.02,
                    "near_full_tol": 0.05, "poll_interval": 0.05},
@@ -165,6 +166,7 @@ class HandConfig:
     close_pose: list = field(default_factory=lambda: [0] * 10)
     point_pose: list = field(default_factory=lambda:
                              [0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    neutral_pose: list = field(default_factory=lambda: [0.5] * 10)
     torque_ma: int = 200
     verify: HandVerifyConfig = field(default_factory=HandVerifyConfig)
 
