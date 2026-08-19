@@ -160,6 +160,13 @@ task1:
   observe_pose_tolerance_rad: 0.12      # 每段完成后的实际姿态允许误差（rad）
   pose_settle_timeout_s: 5.0            # 每段指令返回后，等待 /api/pose 反馈到位的最长时间
   pose_settle_poll_s: 0.10              # 等待到位期间的 /api/pose 轮询周期
+  # 到观察位后：控制器必须空闲，连续反馈稳定，再静置后才允许相机拍照。
+  observe_idle_timeout_s: 10.0          # 等待 /api/status.moving=false 的最长时间
+  observe_stable_samples: 5             # 连续稳定的末端位姿采样数
+  observe_stable_poll_s: 0.20           # 稳定采样间隔
+  observe_stable_drift_m: 0.003         # 相邻稳定采样允许的平移漂移
+  observe_stable_drift_rad: 0.03        # 相邻稳定采样允许的姿态漂移
+  observe_settle_s: 2.0                 # 稳定后额外静置时间；拍照前不可跳过
   observe_max_segments: 80              # 防止配置错误导致过多小段运动
   press_dwell_s: 0.3                    # 按压停留时间
   max_retry: 1                          # 亮灯检测失败重试次数

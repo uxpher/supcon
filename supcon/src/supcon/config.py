@@ -73,6 +73,13 @@ DEFAULTS: dict = {
         # 实际末端反馈进入容差，避免把正常反馈滞后误判为未到位。
         "pose_settle_timeout_s": 5.0,
         "pose_settle_poll_s": 0.10,
+        # 到观察位后，还须控制器 idle + 连续稳定反馈 + 静置，才允许拍照。
+        "observe_idle_timeout_s": 10.0,
+        "observe_stable_samples": 5,
+        "observe_stable_poll_s": 0.20,
+        "observe_stable_drift_m": 0.003,
+        "observe_stable_drift_rad": 0.03,
+        "observe_settle_s": 2.0,
         "observe_max_segments": 80,
         "press_dwell_s": 0.3,
         "max_retry": 1,
@@ -219,6 +226,12 @@ class Task1Config:
     observe_pose_tolerance_rad: float = 0.12
     pose_settle_timeout_s: float = 5.0
     pose_settle_poll_s: float = 0.10
+    observe_idle_timeout_s: float = 10.0
+    observe_stable_samples: int = 5
+    observe_stable_poll_s: float = 0.20
+    observe_stable_drift_m: float = 0.003
+    observe_stable_drift_rad: float = 0.03
+    observe_settle_s: float = 2.0
     observe_max_segments: int = 80
     press_dwell_s: float = 0.3
     max_retry: int = 1

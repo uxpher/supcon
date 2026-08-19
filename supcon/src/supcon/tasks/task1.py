@@ -121,6 +121,54 @@ class Task1Runner:
             f"位置误差 {position * 1000:.1f} mm，姿态误差 {math.degrees(orientation):.1f}°，"
             f"实际位姿 {actual}")
 
+    def _confirm_observe_ready(self, observe: dict) -> dict:
+        """观察位拍照门槛：控制器空闲、连续稳定到位、静置后再次确认。"""
+        idle_timeout = float(getattr(self.cfg.task1, "observe_idle_timeout_s", 10.0))
+        if not self.arm.wait_idle(timeout_s=idle_timeout):
+            self.motion_uncertain = True
+            raise ArmError(f"观察位前等待控制器空闲超时（{idle_timeout:.1f}s）")
+
+        samples_required = int(getattr(self.cfg.task1, "observe_stable_samples", 5))
+        poll_s = float(getattr(self.cfg.task1, "observe_stable_poll_s", 0.20))
+        drift_m = float(getattr(self.cfg.task1, "observe_stable_drift_m", 0.003))
+        drift_rad = float(getattr(self.cfg.task1, "observe_stable_drift_rad", 0.03))
+        timeout_s = float(getattr(self.cfg.task1, "pose_settle_timeout_s", 5.0))
+        pos_tol = float(getattr(self.cfg.task1, "observe_pose_tolerance_m", 0.015))
+        rpy_tol = float(getattr(self.cfg.task1, "observe_pose_tolerance_rad", 0.12))
+        deadline = time.monotonic() + timeout_s
+        stable_count = 0
+        previous = None
+        last = None
+
+        while time.monotonic() < deadline:
+            self._check()
+            actual = self._current_pose("观察位拍照前")
+            pos_error, rpy_error = self._pose_error(actual, observe)
+            drift_ok = True
+            if previous is not None:
+                drift_pos, drift_rpy = self._pose_error(actual, previous)
+                drift_ok = drift_pos <= drift_m and drift_rpy <= drift_rad
+            if pos_error <= pos_tol and rpy_error <= rpy_tol and drift_ok:
+                stable_count += 1
+                if stable_count >= samples_required:
+                    last = actual
+                    break
+            else:
+                stable_count = 0
+            previous = actual
+            time.sleep(poll_s)
+
+        if last is None:
+            self.motion_uncertain = True
+            raise ArmError(
+                f"观察位在 {timeout_s:.1f}s 内未取得 {samples_required} 次连续稳定到位反馈；"
+                f"最后实际位姿 {previous}")
+
+        settle_s = float(getattr(self.cfg.task1, "observe_settle_s", 2.0))
+        log.info("观察位已连续稳定 %d 次，拍照前静置 %.1fs", samples_required, settle_s)
+        time.sleep(settle_s)
+        return self._read_pose(observe, "观察位静置后确认")
+
     def _log_ompl_diagnostics(self, target: dict, label: str, velocity: float,
                               error: Exception) -> None:
         """输出 HTTP 客户端可见的 OMPL 上下文。
@@ -175,13 +223,20 @@ class Task1Runner:
                               ("observe_pose_tolerance_m", 0.015),
                               ("observe_pose_tolerance_rad", 0.12),
                               ("pose_settle_timeout_s", 5.0),
-                              ("pose_settle_poll_s", 0.10)):
+                              ("pose_settle_poll_s", 0.10),
+                              ("observe_idle_timeout_s", 10.0),
+                              ("observe_stable_poll_s", 0.20),
+                              ("observe_stable_drift_m", 0.003),
+                              ("observe_stable_drift_rad", 0.03),
+                              ("observe_settle_s", 2.0)):
             value = float(getattr(self.cfg.task1, key, fallback))
             if not math.isfinite(value) or value <= 0:
                 raise RuntimeError(f"task1.{key} 必须为正的有限数")
         max_segments = int(getattr(self.cfg.task1, "observe_max_segments", 80))
         if max_segments < 1:
             raise RuntimeError("task1.observe_max_segments 必须大于 0")
+        if int(getattr(self.cfg.task1, "observe_stable_samples", 5)) < 1:
+            raise RuntimeError("task1.observe_stable_samples 必须大于 0")
         if int(self.cfg.task1.confirm_frames) < 1:
             raise RuntimeError("task1.confirm_frames 必须大于 0")
         if int(self.cfg.task1.max_retry) < 0:
@@ -438,6 +493,7 @@ class Task1Runner:
             at_observe = self._move_linear(
                 at_safe, observe, "安全位→观察位", float(self.cfg.task1.observe_velocity))
             self.state = "observe"
+            at_observe = self._confirm_observe_ready(observe)
 
             if observe_only:
                 log.warning("观察路径测试完成：机械臂保持在观察位，须由现场人员手动恢复")
@@ -461,6 +517,7 @@ class Task1Runner:
                 at_approach, observe, f"开关 {self.switch_id}→观察位",
                 float(self.cfg.task1.approach_vel))
             self.state = "observe"
+            at_observe = self._confirm_observe_ready(observe)
             self._verify_action(lamp_index, before_scores)
             self.state = "returning_safe"
             self._move_linear(at_observe, safe, "观察位→安全位", float(self.cfg.task1.observe_velocity))
