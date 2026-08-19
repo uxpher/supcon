@@ -94,8 +94,10 @@ class MockCamera(Camera):
         img = np.zeros((h, w, 3), np.uint8)
         for i, l in enumerate(self.lamps):
             cx, cy = int(l["cx"]), int(l["cy"])
-            val = 250 if i == self.lit else 90
-            cv2.circle(img, (cx, cy), 16, (val, val, val), -1)
+            # 亮灯为高饱和绿色，未亮灯为低饱和白色；与真机 Task1 的 HSV
+            # 直接阈值检测一致。
+            color = (0, 255, 0) if i == self.lit else (220, 220, 220)
+            cv2.circle(img, (cx, cy), 16, color, -1)
             cv2.circle(img, (cx, cy), 16, (255, 255, 255), 2)
             cv2.rectangle(img, (cx - 10, cy + 28), (cx + 10, cy + 40),
                           (120, 120, 120), -1)  # 开关示意

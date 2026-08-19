@@ -9,8 +9,8 @@
 
 提示：
 - manual 模式：弹出窗口后按左→右顺序点击 3 盏灯中心，点满 3 个或按 q/ESC 结束；
-- diff 模式：白底面板下 auto 会失效，用「全灭基准帧 + 若干亮灯帧」做差定位，
-  同时写入三灯熄灭亮度基线（baseline_scores）。要求所有帧同视角同分辨率、锁定曝光；
+- diff 模式：白底面板下 auto 会失效，可用「全灭基准帧 + 若干亮灯帧」做差定位；
+  直接 HSV 阈值运行模式不使用亮度基线，要求所有帧同视角同分辨率、锁定曝光仅用于做差定位；
 - 标完灯位后，用 scripts/02_record_pose.py 示教每个开关的动作位姿；
 - 相机模式由 config.yaml 的 camera.mode 决定（file=读图 / real=真机拍照）。
 """
@@ -79,13 +79,23 @@ def load_or_new_panel(panel: dict | None) -> dict:
     }
 
 
+def lamps_from_points(points: list[tuple[float, float]], panel: dict, cfg) -> list[dict]:
+    """按左→右更新灯中心，但保留已有的灯→开关映射。"""
+    old_lamps = panel.get("lamps") or []
+    switch_ids = ([lamp.get("switch_id", index) for index, lamp in enumerate(old_lamps)]
+                  if len(old_lamps) == 3 else list(range(3)))
+    return [{"id": index, "switch_id": switch_ids[index], "cx": x, "cy": y,
+             "roi_radius": cfg.task1.roi_radius}
+            for index, (x, y) in enumerate(points)]
+
+
 def main():
     ap = argparse.ArgumentParser(description="面板灯位标定")
     ap.add_argument("--mode", choices=["auto", "manual", "diff"], default="manual")
     ap.add_argument("--origin", default="", help="diff 模式：全灭基准帧图片路径")
     ap.add_argument("--lit", default="", help="diff 模式：亮灯帧目录或逗号分隔的文件列表")
     ap.add_argument("--save-baseline", action="store_true",
-                    help="将当前三灯均熄灭画面写为亮度基线；必须先已有 lamps 标定")
+                    help="兼容旧版：保存当前三灯熄灭亮度基线；HSV 直接阈值运行时不使用")
     a = ap.parse_args()
 
     cfg = load_config()
@@ -101,10 +111,8 @@ def main():
         print(f"diff 标定：origin={a.origin} 亮灯帧={len(lit_rgbs)} 张")
         pts = LampDetector.calibrate_by_diff(origin, lit_rgbs, n=3)
         pts = sorted(pts, key=lambda p: p[0])
-        panel["lamps"] = [{"id": i, "switch_id": i, "cx": x, "cy": y,
-                           "roi_radius": cfg.task1.roi_radius}
-                          for i, (x, y) in enumerate(pts)]
-        # origin 即全灭帧，顺手写入 ROI 亮度基线，供运行时 ROI 做差判定。
+        panel["lamps"] = lamps_from_points(pts, panel, cfg)
+        # origin 即全灭帧；基线仍保存以兼容旧版本，但新版 HSV 判定不读取它。
         panel["baseline_scores"] = LampDetector.scores(origin, panel["lamps"],
                                                        cfg.task1.roi_radius)
         path = write_task_value("task1", "panel", panel)
@@ -157,8 +165,7 @@ def main():
         sys.exit("灯位不足 3 个，请重试")
     pts = sorted(pts, key=lambda p: p[0])  # 按 x 排序 = 面板左→右
 
-    panel["lamps"] = [{"id": i, "switch_id": i, "cx": x, "cy": y, "roi_radius": cfg.task1.roi_radius}
-                      for i, (x, y) in enumerate(pts)]
+    panel["lamps"] = lamps_from_points(pts, panel, cfg)
     path = write_task_value("task1", "panel", panel)
 
     print(f"已写入 {path} 的 task1.panel：")

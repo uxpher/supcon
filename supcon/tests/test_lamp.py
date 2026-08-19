@@ -29,13 +29,13 @@ def test_no_lamp_lit():
     assert det.detect_lit_index(rgb, LAMPS) is None
 
 
-def test_detect_with_baseline():
+def test_direct_threshold_ignores_white_lamp():
     cfg = load_config()
     det = LampDetector(cfg.task1)
     off = MockCamera(lamps=LAMPS, lit_index=None).grab_rgb()
-    baseline = det.scores(off, LAMPS, cfg.task1.roi_radius)
     on = MockCamera(lamps=LAMPS, lit_index=2).grab_rgb()
-    assert det.detect_lit_index(on, LAMPS, baseline=baseline) == 2
+    assert det.detect_lit_index(off, LAMPS) is None
+    assert det.detect_lit_index(on, LAMPS) == 2
 
 
 def test_find_bright_blobs():
@@ -49,6 +49,6 @@ def test_find_bright_blobs():
 if __name__ == "__main__":
     test_detect_each_lamp()
     test_no_lamp_lit()
-    test_detect_with_baseline()
+    test_direct_threshold_ignores_white_lamp()
     test_find_bright_blobs()
     print("✅ 亮灯检测测试全部通过")

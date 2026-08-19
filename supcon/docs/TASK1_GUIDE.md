@@ -53,17 +53,8 @@ python scripts/01_hand_semantics.py
 
 ### 3.4 面板灯位标定（config.yaml 的 task1.panel → lamps）
 
-**白底面板推荐做差法**（背景板是白色时，旧 `--mode auto` 会失败）：
-
-```bash
-# 先拍一张三灯全灭基准帧 origin.png（相机固定、同分辨率、锁曝光）
-# 再拍若干亮灯帧（覆盖左/中/右各灯至少一次）
-python scripts/03_calibrate_panel.py --mode diff --origin origin.png --lit 亮灯帧目录
-```
-
-做差法会自动聚出 3 个灯位（左→右）并写入 ROI 亮度基线，**不依赖灯位等距**。
-
-兜底方案（手动，最稳）：
+当前 Task1 使用 **HSV 绿色直接阈值** 判定亮灯，不需要熄灯基线。先让机械臂停在观察位，
+再用手动方式拍图并标出三盏灯中心（最稳）：
 
 ```bash
 python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右点 3 盏灯中心
@@ -93,16 +84,12 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
   ```
   出现 ⚠️ OMPL/不可达的位姿要重新摆（说明该位置直线规划会回退成自由路径）。
 
-### 3.5.1 三灯熄灭基线（必须）
+### 3.5.1 HSV 直接阈值调参
 
-做差标定（`--mode diff`）已经顺手把 ROI 基线写入 `config.yaml`。若用 manual 模式标了灯位，可再在三盏灯均熄灭、相机位姿固定时单独补基线：
-
-```bash
-python scripts/03_calibrate_panel.py --save-baseline
-```
-
-运行时按“当前亮度 - 基线”判定。当前面板的未亮指示灯为白色，若没有基线，
-仅凭亮度可能误判并操作错误开关；因此正式 Task1 在 `baseline_scores: null` 时会拒绝启动。
+运行时逐灯统计 ROI 内同时满足 `H∈[green_h_min, green_h_max]`、
+`S≥green_s_min`、`V≥green_v_min` 的绿色像素占比；占比达到
+`green_ratio_min` 的唯一灯即为亮灯。白色未亮灯的饱和度低，会被排除。
+首次拍图后可在 `config.yaml` 调整这些五个阈值；不需要运行 `--save-baseline`。
 
 ### 3.6 干跑自测（不经过竞赛软件）
 
@@ -134,8 +121,9 @@ python scripts/06_serve.py
 
 | 参数 | 含义 | 调优建议 |
 | --- | --- | --- |
-| `task1.lamp_margin` | 亮灯须超过次亮的最小亮度差 | 检测不出亮灯→调小；误判→调大 |
-| `task1.lamp_abs_min` | 亮度增量绝对下限 | 环境暗→调小 |
+| `task1.green_h_min/max` | 绿色 Hue 范围（OpenCV 0~179） | 先 35~95；绿灯偏黄/青时扩展范围 |
+| `task1.green_s_min` / `green_v_min` | 绿色最低饱和度/亮度 | 漏检→逐步调低；白色或反光误判→调高 S |
+| `task1.green_ratio_min` | ROI 内绿色像素占比阈值 | 灯在 ROI 占比小→调低；绿色反光误判→调高 |
 | `task1.diff_max_dist` | 做差判定：亮斑到灯位中心的最大允许距离(px) | 灯位有漂移→调大；误匹配→调小 |
 | `task1.fine_vel` | 下压/拨动速度 | 先 0.05，稳了再逐步提 |
 | `task1.press_dwell_s` | 按压停留 | 按钮行程长→加大 |
@@ -149,7 +137,7 @@ python scripts/06_serve.py
 | 运动返回 `Motion timeout (60s)` | 低速长距离超服务器上限 → 提速，或后续版本切 WebSocket |
 | message 含 `OMPL` | 直线回退成自由路径 → 目标出安全工作域/姿态偏离，重新摆位示教 |
 | `All planning strategies failed` | 目标不可达 → 重摆位姿 |
-| 检测不到亮灯 | ROI 偏了（重跑 03）／阈值不合适（调 lamp_margin/abs_min）／拍照时灯没亮 |
+| 检测不到亮灯 | ROI 偏了（重跑 03）／HSV 阈值不合适（调 green_*）／拍照时灯没亮 |
 | 使能成功但臂不动 | 服务器主栈可能以只读安全模式部署（auto_enable=false）→ 找现场工程师 |
 | `/api/pose` 返回 null | 系统刚启动 TF 未就绪 → 等几秒重试 |
 | 失能后臂下坠 | 这是文档明确的行为（软急停失力矩），**只在低位且有托扶时失能** |

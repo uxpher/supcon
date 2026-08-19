@@ -1,9 +1,8 @@
-"""亮灯检测。
+"""Task1 指示灯检测（HSV 直接阈值，无需熄灯基线）。
 
-思路（确定性规则，无需训练模型）：
-- 面板固定，3 盏灯在图像中的位置预先标定（config.yaml 的 task1.panel.lamps[].cx/cy）；
-- 运行时对每盏灯的 ROI 算平均亮度（HSV 的 V 通道），
-  最亮且明显超过次亮者 = 亮灯；否则判定"无亮灯"。
+面板固定后只需标定三盏灯的 ROI。每个 ROI 中满足绿色 Hue、饱和度和亮度
+三个阈值的像素占比超过 ``green_ratio_min``，即判为亮灯。白色未亮灯的饱和度
+接近零，不能通过该判据；三个 ROI 中必须恰好有一个通过，否则安全地判为不确定。
 """
 from __future__ import annotations
 
@@ -18,14 +17,17 @@ log = logging.getLogger("lamp")
 class LampDetector:
     def __init__(self, cfg):
         """cfg: supcon.config.Task1Config"""
-        self.margin = cfg.lamp_margin      # 亮灯须超过次亮的最小差值
-        self.abs_min = cfg.lamp_abs_min    # 亮度绝对下限
         self.roi = cfg.roi_radius          # ROI 半径（像素）
+        self.green_h_min = cfg.green_h_min
+        self.green_h_max = cfg.green_h_max
+        self.green_s_min = cfg.green_s_min
+        self.green_v_min = cfg.green_v_min
+        self.green_ratio_min = cfg.green_ratio_min
         self.diff_max_dist = cfg.diff_max_dist  # 做差判定最大匹配距离（最大判定误差，px）
 
     @staticmethod
     def scores(rgb: np.ndarray, lamps: list, default_radius: int) -> list[float]:
-        """返回每个灯 ROI 的 HSV-V 均值；调用方可与现场基线做差。"""
+        """返回每个灯 ROI 的 HSV-V 均值（仅供标定诊断/兼容旧基线工具）。"""
         if not lamps:
             return []
         v = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)[..., 2]
@@ -41,33 +43,49 @@ class LampDetector:
 
         return scores
 
+    def green_scores(self, rgb: np.ndarray, lamps: list) -> list[float]:
+        """返回每盏灯 ROI 中通过 HSV 绿色阈值的像素占比（范围 0~1）。"""
+        if not lamps:
+            return []
+        hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+        h, w = hsv.shape[:2]
+        green = ((hsv[..., 0] >= self.green_h_min) &
+                 (hsv[..., 0] <= self.green_h_max) &
+                 (hsv[..., 1] >= self.green_s_min) &
+                 (hsv[..., 2] >= self.green_v_min))
+        ratios = []
+        for lamp in lamps:
+            cx, cy = int(lamp["cx"]), int(lamp["cy"])
+            radius = int(lamp.get("roi_radius", self.roi))
+            y0, y1 = max(0, cy - radius), min(h, cy + radius)
+            x0, x1 = max(0, cx - radius), min(w, cx + radius)
+            roi = green[y0:y1, x0:x1]
+            ratios.append(float(roi.mean()) if roi.size else 0.0)
+        return ratios
+
     def detect_lit_index(self, rgb: np.ndarray, lamps: list,
                          baseline: list[float] | None = None) -> int | None:
-        """返回 lamps 列表下标。提供 baseline 时按亮度增量判定。"""
-        raw = self.scores(rgb, lamps, self.roi)
-        if not raw:
+        """返回唯一亮灯的列表下标；``baseline`` 仅为旧调用兼容，已不参与判定。"""
+        if not lamps:
             log.warning("面板文件里没有灯位")
             return None
-        scores = raw
-        if baseline is not None:
-            if len(baseline) != len(raw):
-                raise ValueError("亮灯基线长度与 lamps 不一致")
-            scores = [value - base for value, base in zip(raw, baseline)]
-        order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-        best = order[0]
-        second = order[1] if len(order) > 1 else None
-        if scores[best] < self.abs_min:
-            log.warning("无亮灯：最亮 ROI=%.1f < 阈值 %.1f（亮度: %s）",
-                        scores[best], self.abs_min,
-                        [round(s, 1) for s in scores])
+        scores = self.green_scores(rgb, lamps)
+        candidates = [index for index, score in enumerate(scores)
+                      if score >= self.green_ratio_min]
+        if not candidates:
+            log.warning("无亮灯：绿色像素占比=%s，阈值=%.3f",
+                        [round(score, 3) for score in scores], self.green_ratio_min)
             return None
-        if second is not None and scores[best] - scores[second] < self.margin:
-            log.warning("无法区分亮灯：最亮=%.1f 次亮=%.1f 差值<%.1f",
-                        scores[best], scores[second], self.margin)
+        if len(candidates) != 1:
+            log.warning("无法唯一判定亮灯：候选=%s，绿色像素占比=%s，阈值=%.3f",
+                        candidates, [round(score, 3) for score in scores], self.green_ratio_min)
             return None
-        log.info("灯 ROI 原始亮度=%s 判定分数=%s → 亮灯 = #%d",
-                 [round(s, 1) for s in raw], [round(s, 1) for s in scores], best)
-        return best
+        index = candidates[0]
+        log.info("灯 ROI 绿色像素占比=%s（H=%d~%d,S>=%d,V>=%d）→ 亮灯=#%d",
+                 [round(score, 3) for score in scores],
+                 self.green_h_min, self.green_h_max, self.green_s_min,
+                 self.green_v_min, index)
+        return index
 
     @staticmethod
     def find_bright_blobs(rgb: np.ndarray, n: int = 3,

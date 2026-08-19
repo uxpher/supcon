@@ -70,15 +70,19 @@ DEFAULTS: dict = {
         "observe_max_segments": 80,
         "press_dwell_s": 0.3,
         "max_retry": 1,
-        "lamp_margin": 15.0,
-        "lamp_abs_min": 60.0,
+        # OpenCV HSV：H∈[0,179]，S/V∈[0,255]。Task1 用绿色像素直接阈值判定。
+        "green_h_min": 35,
+        "green_h_max": 95,
+        "green_s_min": 80,
+        "green_v_min": 80,
+        "green_ratio_min": 0.10,
         "roi_radius": 18,
         "diff_max_dist": 80.0,
         "preview_first_move": True,
         "confirm_frames": 3,
         "frame_interval_s": 0.12,
         "action_verify": "motion_only",  # motion_only / lamp_change
-        "action_change_min": 12.0,
+        "action_change_min": 0.10,
     },
     "task2": {
         "scene": None,  # 主配置；scene_file 仅兼容旧版现场文件
@@ -206,15 +210,18 @@ class Task1Config:
     observe_max_segments: int = 80
     press_dwell_s: float = 0.3
     max_retry: int = 1
-    lamp_margin: float = 15.0
-    lamp_abs_min: float = 60.0
+    green_h_min: int = 35
+    green_h_max: int = 95
+    green_s_min: int = 80
+    green_v_min: int = 80
+    green_ratio_min: float = 0.10
     roi_radius: int = 18
     diff_max_dist: float = 80.0
     preview_first_move: bool = True
     confirm_frames: int = 3
     frame_interval_s: float = 0.12
     action_verify: str = "motion_only"
-    action_change_min: float = 12.0
+    action_change_min: float = 0.10
 
 
 @dataclass

@@ -164,12 +164,22 @@ class Task1Runner:
             raise RuntimeError("task1.confirm_frames 必须大于 0")
         if int(self.cfg.task1.max_retry) < 0:
             raise RuntimeError("task1.max_retry 不能小于 0")
-        for key in ("press_dwell_s", "frame_interval_s", "lamp_margin", "lamp_abs_min"):
+        for key in ("press_dwell_s", "frame_interval_s", "action_change_min"):
             value = float(getattr(self.cfg.task1, key))
             if not math.isfinite(value) or value < 0:
                 raise RuntimeError(f"task1.{key} 必须为非负有限数")
         if int(self.cfg.task1.roi_radius) < 1:
             raise RuntimeError("task1.roi_radius 必须大于 0")
+        h_min, h_max = int(self.cfg.task1.green_h_min), int(self.cfg.task1.green_h_max)
+        if not (0 <= h_min <= h_max <= 179):
+            raise RuntimeError("task1.green_h_min/green_h_max 必须满足 0 ≤ min ≤ max ≤ 179")
+        for key in ("green_s_min", "green_v_min"):
+            value = int(getattr(self.cfg.task1, key))
+            if not 0 <= value <= 255:
+                raise RuntimeError(f"task1.{key} 必须在 0~255")
+        ratio = float(self.cfg.task1.green_ratio_min)
+        if not math.isfinite(ratio) or not 0 < ratio <= 1:
+            raise RuntimeError("task1.green_ratio_min 必须在 (0, 1]")
         if self.cfg.task1.action_verify not in {"motion_only", "lamp_change"}:
             raise RuntimeError(f"未知 task1.action_verify={self.cfg.task1.action_verify}")
         return safe, observe
@@ -221,20 +231,14 @@ class Task1Runner:
             except (KeyError, TypeError, ValueError) as exc:
                 raise RuntimeError(f"灯 {lamp.get('id')} 的 cx/cy 必须为有限数") from exc
         baseline = panel.get("baseline_scores")
-        # 当前面板存在未亮的白色指示灯，不能只比较 HSV-V 的绝对亮度；否则会
-        # 把白色灯罩误认作亮灯而操作错误开关。因此正式运行必须使用熄灯基线。
-        if baseline is None:
-            raise RuntimeError(
-                "task1.panel.baseline_scores 尚未标定；请在三灯熄灭时运行 "
-                "scripts/03_calibrate_panel.py --save-baseline。"
-                "仅验证机械臂路径请使用 05_test_task1.py --observe-only")
-        if not isinstance(baseline, list) or len(baseline) != len(lamps):
-            raise RuntimeError("task1.panel.baseline_scores 必须为与 lamps 等长的数值列表")
-        try:
-            if not all(math.isfinite(float(score)) for score in baseline):
-                raise ValueError
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError("task1.panel.baseline_scores 包含非有限数") from exc
+        if baseline is not None:
+            if not isinstance(baseline, list) or len(baseline) != len(lamps):
+                raise RuntimeError("task1.panel.baseline_scores 必须为与 lamps 等长的数值列表或 null")
+            try:
+                if not all(math.isfinite(float(score)) for score in baseline):
+                    raise ValueError
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("task1.panel.baseline_scores 包含非有限数") from exc
         return panel
 
     # ---------- 安全运动 ----------
@@ -316,13 +320,13 @@ class Task1Runner:
                 rgb = self.camera.grab_rgb()
                 self.dump.rgb(rgb, "color", "observe")
                 index = self.detector.detect_lit_index(
-                    rgb, self.panel["lamps"], baseline=self.panel.get("baseline_scores"))
+                    rgb, self.panel["lamps"])
                 if index is not None and index == streak_id:
                     streak += 1
                 else:
                     streak_id, streak = index, 1 if index is not None else 0
                 if streak >= int(self.cfg.task1.confirm_frames):
-                    scores = self.detector.scores(rgb, self.panel["lamps"], self.cfg.task1.roi_radius)
+                    scores = self.detector.green_scores(rgb, self.panel["lamps"])
                     return index, scores
                 time.sleep(float(self.cfg.task1.frame_interval_s))
             log.warning("亮灯识别第 %d 次未取得连续一致结果", attempt + 1)
@@ -361,7 +365,7 @@ class Task1Runner:
         if self.camera is None or self.panel is None:
             raise RuntimeError("lamp_change 验证缺少相机或面板配置")
         time.sleep(float(self.cfg.task1.frame_interval_s))
-        after = self.detector.scores(self.camera.grab_rgb(), self.panel["lamps"], self.cfg.task1.roi_radius)
+        after = self.detector.green_scores(self.camera.grab_rgb(), self.panel["lamps"])
         if abs(after[lamp_index] - before_scores[lamp_index]) < float(self.cfg.task1.action_change_min):
             raise RuntimeError("操作后目标灯状态未产生足够可见变化")
 
