@@ -8,7 +8,9 @@ service:
 arm:
   base_url: "http://192.168.0.22:8087"   # FTArm B9 机械臂服务地址
   arm: "left_arm"                      # mode 字段：左臂用 left_arm（现场 /api/pose、/api/motors 均为 left_*）
-  pose_key: "right"                   # ★ 已采集：该左臂服务器的目标位姿键/使能返回键实际为 right
+  # 左臂服务的 enable 响应嵌套在 right；但 /api/end_effector 的目标位姿字段为 left。
+  pose_key: "right"                   # enable/disable 响应键（已由 Motors enabled 响应验证）
+  target_pose_key: "left"             # ★ 运动请求体键；此前设为 right 会收到 HTTP 400
   default_rpy: [-3.141, -1.552, 3.141] # 推荐固定姿态（rad，文档验证过的直线工作域姿态）
   velocity_fast: 0.20                  # 长距离转运速度（关节限速百分比，真机建议 ≤0.3）
   velocity_slow: 0.05                  # 下压/拨动等贴脸动作速度

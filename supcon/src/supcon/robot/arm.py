@@ -33,7 +33,16 @@ class B9Client:
 
     def _post(self, path: str, payload: dict, timeout: float = 10) -> dict:
         r = requests.post(f"{self.base}{path}", json=payload, timeout=timeout)
-        r.raise_for_status()
+        try:
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            # B9 在 400 响应体中通常给出字段校验/规划拒绝的具体文字；此前
+            # raise_for_status 会丢弃这些最关键的现场诊断信息。
+            try:
+                detail = r.json()
+            except ValueError:
+                detail = r.text[:2000]
+            raise ArmError(f"HTTP {r.status_code} {path}: {detail}") from exc
         return r.json()
 
     # ---------- 查询 ----------
@@ -88,6 +97,10 @@ class B9Client:
         """使能/失能响应里的嵌套键：right_arm → right。"""
         return self.cfg.pose_key
 
+    def _target_key(self) -> str:
+        """运动请求内的目标位姿键，可与 enable/disable 响应键不同。"""
+        return getattr(self.cfg, "target_pose_key", "") or self.cfg.pose_key
+
     def enable(self) -> None:
         d = self._post("/api/enable", {})
         inner = d.get(self._side_key(), d)
@@ -125,7 +138,7 @@ class B9Client:
             }
         payload = {
             "mode": self.cfg.arm,
-            self.cfg.pose_key: target,
+            self._target_key(): target,
             "cartesian_linear": True,
             "velocity_scaling": vel if vel is not None else self.cfg.velocity_fast,
             "acceleration_scaling": self.cfg.acceleration_scaling,
@@ -155,7 +168,7 @@ class B9Client:
         """7 关节运动（备用）。joints 顺序见文档 §5.2。"""
         payload = {
             "mode": self.cfg.arm,
-            f"{self.cfg.pose_key}_joints": list(joints),
+            f"{self._target_key()}_joints": list(joints),
             "velocity_scaling": vel if vel is not None else 0.2,
             "acceleration_scaling": 0.1,
             "plan_only": plan_only,

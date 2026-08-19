@@ -3,7 +3,8 @@
 
     python scripts/05_test_task1.py [--observe-only] [--effort-guard] [--effort-guard-threshold X]
 
-真机/模拟均可：完全取决于 config.yaml（camera.mode、base_url）。
+完整任务取决于 config.yaml（camera.mode、base_url）。``--observe-only`` 不启动相机，
+可在相机被占用时单独验证机械臂观察路径。
 """
 import argparse
 import pathlib
@@ -12,7 +13,11 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from supcon.config import load_config
+from supcon.robot.arm import B9Client
+from supcon.robot.hand import O10Client
+from supcon.robot.safety import SafetyMonitor
 from supcon.service import build_runtime
+from supcon.tasks.task1 import Task1Runner
 from supcon.utils import setup_logging
 
 
@@ -31,13 +36,24 @@ def main():
         cfg.safety.effort_guard_threshold = args.effort_guard_threshold
 
     setup_logging(cfg.logging.get("level", "INFO"), cfg.resolve(cfg.logging.get("file", "")))
-    arm, hand, camera, safety, runners = build_runtime(cfg)
+    if args.observe_only:
+        # 此模式不读取图像、不识别灯，只需臂/手/安全监控；避免相机被其他
+        # 进程占用时无法验证安全位→观察位的机械臂路径。
+        arm = B9Client(cfg.arm)
+        hand = O10Client(cfg.hand)
+        camera = None
+        safety = SafetyMonitor(arm, hand, cfg.safety)
+        runner = Task1Runner(cfg, arm, hand, camera, safety)
+    else:
+        arm, hand, camera, safety, runners = build_runtime(cfg)
+        runner = runners["task1"]
     safety.start()
     try:
-        ok, msg = runners["task1"].run(observe_only=args.observe_only)
+        ok, msg = runner.run(observe_only=args.observe_only)
     finally:
         safety.stop()
-        camera.close()
+        if camera is not None:
+            camera.close()
     print(f"\n结果: success={ok} message={msg}")
     sys.exit(0 if ok else 1)
 

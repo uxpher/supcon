@@ -18,7 +18,9 @@ DEFAULTS: dict = {
     "arm": {
         "base_url": "http://127.0.0.1:8087",
         "arm": "right_arm",
+        # pose_key 用于 enable/disable 响应；target_pose_key 用于运动请求体。
         "pose_key": "right",
+        "target_pose_key": "right",
         "default_rpy": [R_DEF, P_DEF, Y_DEF],
         "velocity_fast": 0.20,
         "velocity_slow": 0.05,
@@ -140,6 +142,7 @@ class ArmConfig:
     base_url: str = "http://127.0.0.1:8087"
     arm: str = "right_arm"                 # right_arm / left_arm
     pose_key: str = "right"                # right / left
+    target_pose_key: str = "right"         # /api/end_effector 的目标位姿键
     default_rpy: list = field(default_factory=lambda: [R_DEF, P_DEF, Y_DEF])
     velocity_fast: float = 0.20
     velocity_slow: float = 0.05

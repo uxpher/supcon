@@ -74,8 +74,71 @@ class Task1Runner:
         except ArmError as exc:
             if "OMPL" in str(exc):
                 self._ompl_seen = True
+                self._log_ompl_diagnostics(pose, what, vel, exc)
             raise
         self._check()
+
+    def _log_ompl_diagnostics(self, target: dict, label: str, velocity: float,
+                              error: Exception) -> None:
+        """记录 OMPL 回退时客户端可获得的完整诊断上下文。
+
+        B9 HTTP 接口只返回 ``OMPL execution finished``，不暴露 MoveIt 的碰撞对象、
+        关节限位或 IK 求解失败细节；这里输出足以定位发生在哪一段、实际是否到点、
+        是否存在电机/控制器异常。真正的规划失败原因仍须查看机械臂服务端日志。
+        """
+        actual = None
+        status = None
+        controllers = None
+        motor_summary = None
+        try:
+            actual = self.arm.pose()
+        except Exception as exc:
+            actual = {"query_error": str(exc)}
+        try:
+            status = self.arm.status()
+        except Exception as exc:
+            status = {"query_error": str(exc)}
+        try:
+            controllers = self.arm.controllers()
+        except Exception as exc:
+            controllers = {"query_error": str(exc)}
+        try:
+            motors = self.arm.motors()
+            motor_summary = {
+                name: {
+                    "enabled": item.get("enabled"),
+                    "fault": item.get("fault"),
+                    "has_feedback": item.get("has_feedback"),
+                    "feedback_age": item.get("feedback_age"),
+                    "effort": item.get("effort"),
+                }
+                for name, item in motors.items()
+            }
+        except Exception as exc:
+            motor_summary = {"query_error": str(exc)}
+
+        pose_error = None
+        if isinstance(actual, dict) and all(key in actual for key in _POSE_KEYS):
+            try:
+                position, angle = self._pose_distance(actual, target)
+                pose_error = {"position_mm": round(position * 1000, 2),
+                              "orientation_deg": round(math.degrees(angle), 2)}
+            except (TypeError, ValueError, KeyError):
+                pass
+        log.error(
+            "OMPL 诊断：段=%s；原始响应=%s；目标=%s；实际=%s；末端误差=%s；"
+            "请求={mode:%s, target_pose_key:%s, cartesian_linear:true, velocity:%.3f, eef_step:%.3f}；"
+            "status=%s；controllers=%s；motors=%s",
+            label, error, target, actual, pose_error,
+            self.cfg.arm.arm,
+            getattr(self.cfg.arm, "target_pose_key", self.cfg.arm.pose_key),
+            velocity, self.cfg.arm.eef_step,
+            status, controllers, motor_summary,
+        )
+        log.error(
+            "OMPL 根因边界：HTTP 服务未返回碰撞/IK/关节限位的内部原因。"
+            "请在 B9 服务端/ROS 控制台检索同一时刻的 MoveIt 规划日志；"
+            "本日志中的“段”和“末端误差”用于将该服务端日志精确对应到具体运动段。")
 
     @staticmethod
     def _angle_delta(start: float, target: float) -> float:
@@ -97,8 +160,9 @@ class Task1Runner:
         if not isinstance(actual, dict) or any(key not in actual for key in _POSE_KEYS):
             raise ArmError(f"{label} 后无法读取完整末端位姿，拒绝继续差值路径")
         pos_err, angle_err = self._pose_distance(actual, expected)
-        if (pos_err > self.cfg.task1.observe_pose_tolerance_m or
-                angle_err > self.cfg.task1.observe_pose_tolerance_rad):
+        pos_tolerance = float(getattr(self.cfg.task1, "observe_pose_tolerance_m", 0.015))
+        angle_tolerance = float(getattr(self.cfg.task1, "observe_pose_tolerance_rad", 0.12))
+        if pos_err > pos_tolerance or angle_err > angle_tolerance:
             raise ArmError(
                 f"{label} 实际位姿偏差过大：位置 {pos_err * 1000:.1f} mm，"
                 f"姿态 {math.degrees(angle_err):.1f}°")
@@ -120,13 +184,18 @@ class Task1Runner:
                             for key in ("roll", "pitch", "yaw")}
         except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeError("Task1 安全位或观察位缺少有效的六维数值") from exc
-        if self.cfg.task1.observe_step_m <= 0 or self.cfg.task1.observe_step_rad <= 0:
+        # getattr 保持与尚未同步新版 config.py 的现场部署兼容。
+        step_m = float(getattr(self.cfg.task1, "observe_step_m", 0.010))
+        step_rad = float(getattr(self.cfg.task1, "observe_step_rad", 0.052))
+        velocity = float(getattr(self.cfg.task1, "observe_velocity", 0.03))
+        max_segments = int(getattr(self.cfg.task1, "observe_max_segments", 80))
+        if step_m <= 0 or step_rad <= 0:
             raise RuntimeError("observe_step_m / observe_step_rad 必须大于 0")
         count = max(1,
-                    math.ceil(translation / self.cfg.task1.observe_step_m),
+                    math.ceil(translation / step_m),
                     math.ceil(max(abs(v) for v in angle_deltas.values()) /
-                              self.cfg.task1.observe_step_rad))
-        if count > self.cfg.task1.observe_max_segments:
+                              step_rad))
+        if count > max_segments:
             raise RuntimeError(
                 f"安全位→观察位需要 {count} 个差值段，超过 observe_max_segments；"
                 "请核对两端位姿或增大单步上限")
@@ -146,7 +215,7 @@ class Task1Runner:
             if index == count:
                 segment = {key: float(target[key]) for key in _POSE_KEYS}
             label = f"观察路径 {index}/{count}"
-            self._move(segment, self.cfg.task1.observe_velocity, label, preview=True)
+            self._move(segment, velocity, label, preview=True)
             self._assert_reached(segment, label)
 
     # ---------- 流程步骤 ----------
@@ -308,8 +377,10 @@ class Task1Runner:
         ready = False
         log.info("===== 任务1 开始 =====")
         try:
-            self.panel = self._load_and_validate_panel()
-            # 配置（尤其是模板中的 null 示教位姿）必须在任何真机动作前失败。
+            # --observe-only 只验证安全位→观察位；不要求灯位和开关动作已经标定。
+            if not observe_only:
+                self.panel = self._load_and_validate_panel()
+            # 正式任务的面板配置（尤其是 null 示教位姿）必须在任何真机动作前失败。
             self._ensure_ready()
             ready = True
             # 先到安全位，再用上层差值法走向观察位；不再一次下发远距离观察位。
