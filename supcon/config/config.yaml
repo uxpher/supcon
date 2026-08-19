@@ -147,6 +147,8 @@ task1:
           roll: -2.697
           pitch: -1.454
           yaw: -1.950
+    # 尚未采集时保持 null；正式 Task1 会安全拒绝执行，避免白色未亮灯被误判。
+    # 三灯均熄灭、机械臂位于观察位时运行：03_calibrate_panel.py --save-baseline
     baseline_scores: null
   approach_vel: 0.15                    # 去观察位/开关上方速度
   fine_vel: 0.05                        # 下压/拨动速度（慢=稳=安全）

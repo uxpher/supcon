@@ -24,7 +24,7 @@ from supcon.utils import setup_logging
 def main():
     ap = argparse.ArgumentParser(description="任务1 直跑测试")
     ap.add_argument("--observe-only", action="store_true",
-                    help="只测试安全位→观察位的差值路径；到观察位即停止，不执行开关或自动撤离")
+                    help="只测试安全位→观察位的差值路径；开始前必须人工置于安全位，到观察位即停止")
     ap.add_argument("--effort-guard", action="store_true", help="启用力矩绝对值上限急停")
     ap.add_argument("--effort-guard-threshold", type=float, default=None,
                     help="力矩绝对值上限(Nm)")

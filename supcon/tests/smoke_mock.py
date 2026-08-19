@@ -43,8 +43,16 @@ def main():
         return {"x": 0.275, "y": y, "z": z,
                 "roll": -3.141, "pitch": -1.552, "yaw": 3.141}
 
+    # 新版 Task1 要求测试开始时已经位于安全位；mock 初始位姿即此姿态。
+    cfg.arm.task1_safe_pose = pose(0.48)
+    cfg.arm.observe_pose = pose(0.50)
+    cfg.task1.observe_step_m = 0.03
+    cfg.task1.observe_step_rad = 0.10
+    cfg.task1.observe_max_segments = 20
+
     panel = {
         "lamps": lamps,
+        "baseline_scores": [0.0, 0.0, 0.0],
         "switches": [
             {"id": 0, "type": "button",
              "approach_pose": pose(0.50), "press_pose": pose(0.46)},

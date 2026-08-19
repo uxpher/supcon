@@ -93,7 +93,7 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
   ```
   出现 ⚠️ OMPL/不可达的位姿要重新摆（说明该位置直线规划会回退成自由路径）。
 
-### 3.5.1 三灯熄灭基线（推荐）
+### 3.5.1 三灯熄灭基线（必须）
 
 做差标定（`--mode diff`）已经顺手把 ROI 基线写入 `config.yaml`。若用 manual 模式标了灯位，可再在三盏灯均熄灭、相机位姿固定时单独补基线：
 
@@ -101,13 +101,25 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 python scripts/03_calibrate_panel.py --save-baseline
 ```
 
-运行时按“当前亮度 - 基线”判定，可降低不同颜色灯、环境反光和自动曝光造成的误判。
+运行时按“当前亮度 - 基线”判定。当前面板的未亮指示灯为白色，若没有基线，
+仅凭亮度可能误判并操作错误开关；因此正式 Task1 在 `baseline_scores: null` 时会拒绝启动。
 
 ### 3.6 干跑自测（不经过竞赛软件）
+
+先在网页控制面板中把机械臂人工置于 `arm.task1_safe_pose`；程序不会从未知位置
+自动回安全位。第一轮只验证观察路径：
+
+```bash
+python scripts/05_test_task1.py --observe-only
+```
+
+该模式不启动相机、不读取灯位和开关位姿，到达观察位后保持不动，须人工确认后恢复。
+确认路径无碰撞后，再让三盏灯分别亮起并执行完整自测：
+
 ```bash
 python scripts/05_test_task1.py
 ```
-预期：日志显示「观察位 → 检测亮灯 #N → 按压/拨动 → 安全位 → 完成」。全程盯着臂，手放在急停旁边（网页面板/失能按钮）。失败看 `runtime/logs/service.log` 和 `--list` 核对位姿。
+预期：日志显示「安全位→观察位（分段）→检测亮灯 #N→开关接近位（分段）→按压/拨动（分段）→观察位→安全位」。任何异常或 OMPL 回退都会停止在当前位置，**不自动撤离**；全程盯着臂，手放在急停旁边。失败看 `runtime/logs/service.log` 的 `OMPL诊断`，并在 B9/ROS/MoveIt 服务端日志中查碰撞、IK 或关节限位根因。
 
 ### 3.7 接入竞赛软件
 ```bash
