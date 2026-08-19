@@ -84,8 +84,11 @@ def lamps_from_points(points: list[tuple[float, float]], panel: dict, cfg) -> li
     old_lamps = panel.get("lamps") or []
     switch_ids = ([lamp.get("switch_id", index) for index, lamp in enumerate(old_lamps)]
                   if len(old_lamps) == 3 else list(range(3)))
+    colors = ([lamp.get("color", color) for lamp, color in
+               zip(old_lamps, ("green", "white", "red"))]
+              if len(old_lamps) == 3 else ["green", "white", "red"])
     return [{"id": index, "switch_id": switch_ids[index], "cx": x, "cy": y,
-             "roi_radius": cfg.task1.roi_radius}
+             "color": colors[index], "roi_radius": cfg.task1.roi_radius}
             for index, (x, y) in enumerate(points)]
 
 

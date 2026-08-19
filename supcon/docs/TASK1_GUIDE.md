@@ -86,10 +86,10 @@ python scripts/03_calibrate_panel.py --mode manual    # 弹出窗口，左→右
 
 ### 3.5.1 HSV 直接阈值调参
 
-运行时逐灯统计 ROI 内同时满足 `H∈[green_h_min, green_h_max]`、
-`S≥green_s_min`、`V≥green_v_min` 的绿色像素占比；占比达到
-`green_ratio_min` 的唯一灯即为亮灯。白色未亮灯的饱和度低，会被排除。
-首次拍图后可在 `config.yaml` 调整这些五个阈值；不需要运行 `--save-baseline`。
+运行时按每盏灯的 `color` 分别统计亮态像素占比：绿色灯使用绿色 Hue + 高饱和度/亮度；
+白灯使用低饱和度 + 高亮度；红灯使用红色 Hue（兼容过曝后的橙/黄 Hue）+ 高饱和度/亮度。
+唯一通过 `lamp_on_ratio_min` 的灯即为亮灯。首次拍图后可在 `config.yaml` 调整阈值；
+不需要运行 `--save-baseline`。
 
 ### 3.6 干跑自测（不经过竞赛软件）
 
@@ -121,9 +121,11 @@ python scripts/06_serve.py
 
 | 参数 | 含义 | 调优建议 |
 | --- | --- | --- |
-| `task1.green_h_min/max` | 绿色 Hue 范围（OpenCV 0~179） | 先 35~95；绿灯偏黄/青时扩展范围 |
-| `task1.green_s_min` / `green_v_min` | 绿色最低饱和度/亮度 | 漏检→逐步调低；白色或反光误判→调高 S |
-| `task1.green_ratio_min` | ROI 内绿色像素占比阈值 | 灯在 ROI 占比小→调低；绿色反光误判→调高 |
+| `task1.green_h_min/max` | 绿灯 Hue 范围（OpenCV 0~179） | 先 35~95；绿灯偏青时扩展范围 |
+| `task1.red_h_low_max` / `red_h_high_min` | 红灯 Hue 双区间 | 低区间 0~40 兼容橙/黄过曝红灯 |
+| `task1.lamp_color_s_min` / `lamp_on_v_min` | 彩色灯最低饱和度/三类灯最低亮度 | 漏检→逐步调低；反光误判→调高 |
+| `task1.white_s_max` | 白灯最大饱和度 | 彩色反光误判白灯→调低 |
+| `task1.lamp_on_ratio_min` | 对应颜色有效像素占比阈值 | 灯在 ROI 占比小→调低；反光误判→调高 |
 | `task1.diff_max_dist` | 做差判定：亮斑到灯位中心的最大允许距离(px) | 灯位有漂移→调大；误匹配→调小 |
 | `task1.fine_vel` | 下压/拨动速度 | 先 0.05，稳了再逐步提 |
 | `task1.press_dwell_s` | 按压停留 | 按钮行程长→加大 |

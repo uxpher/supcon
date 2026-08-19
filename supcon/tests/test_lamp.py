@@ -11,7 +11,9 @@ from supcon.config import load_config
 from supcon.vision.camera import MockCamera
 from supcon.vision.lamp import LampDetector
 
-LAMPS = [{"cx": 150, "cy": 240}, {"cx": 320, "cy": 240}, {"cx": 490, "cy": 240}]
+LAMPS = [{"cx": 150, "cy": 240, "color": "green"},
+         {"cx": 320, "cy": 240, "color": "white"},
+         {"cx": 490, "cy": 240, "color": "red"}]
 
 
 def test_detect_each_lamp():

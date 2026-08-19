@@ -35,9 +35,9 @@ def main():
     cfg.task1.press_dwell_s = 0.01
     cfg.task1.max_retry = 1
 
-    lamps = [{"id": 0, "switch_id": 2, "cx": 150, "cy": 240, "roi_radius": 18},
-             {"id": 1, "switch_id": 0, "cx": 320, "cy": 240, "roi_radius": 18},
-             {"id": 2, "switch_id": 1, "cx": 490, "cy": 240, "roi_radius": 18}]
+    lamps = [{"id": 0, "switch_id": 2, "color": "green", "cx": 150, "cy": 240, "roi_radius": 18},
+             {"id": 1, "switch_id": 0, "color": "white", "cx": 320, "cy": 240, "roi_radius": 18},
+             {"id": 2, "switch_id": 1, "color": "red", "cx": 490, "cy": 240, "roi_radius": 18}]
 
     def pose(z, y=-0.16):
         return {"x": 0.275, "y": y, "z": z,

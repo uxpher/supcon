@@ -83,12 +83,16 @@ DEFAULTS: dict = {
         "observe_max_segments": 80,
         "press_dwell_s": 0.3,
         "max_retry": 1,
-        # OpenCV HSV：H∈[0,179]，S/V∈[0,255]。Task1 用绿色像素直接阈值判定。
+        # OpenCV HSV：H∈[0,179]，S/V∈[0,255]。Task1 分别判断绿/白/红灯。
         "green_h_min": 35,
         "green_h_max": 95,
-        "green_s_min": 80,
-        "green_v_min": 80,
-        "green_ratio_min": 0.10,
+        "lamp_color_s_min": 80,
+        "lamp_on_v_min": 160,
+        "white_s_max": 70,
+        # 红灯在 Gemini 画面中可能因过曝呈橙/黄，故红色范围含 H=0~40。
+        "red_h_low_max": 40,
+        "red_h_high_min": 165,
+        "lamp_on_ratio_min": 0.02,
         "roi_radius": 18,
         "diff_max_dist": 80.0,
         "preview_first_move": True,
@@ -237,9 +241,12 @@ class Task1Config:
     max_retry: int = 1
     green_h_min: int = 35
     green_h_max: int = 95
-    green_s_min: int = 80
-    green_v_min: int = 80
-    green_ratio_min: float = 0.10
+    lamp_color_s_min: int = 80
+    lamp_on_v_min: int = 160
+    white_s_max: int = 70
+    red_h_low_max: int = 40
+    red_h_high_min: int = 165
+    lamp_on_ratio_min: float = 0.02
     roi_radius: int = 18
     diff_max_dist: float = 80.0
     preview_first_move: bool = True

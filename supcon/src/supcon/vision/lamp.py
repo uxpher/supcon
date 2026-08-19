@@ -1,8 +1,8 @@
-"""Task1 指示灯检测（HSV 直接阈值，无需熄灯基线）。
+"""Task1 指示灯检测：分别判断绿色、白色、红色三盏灯的亮灭。
 
-面板固定后只需标定三盏灯的 ROI。每个 ROI 中满足绿色 Hue、饱和度和亮度
-三个阈值的像素占比超过 ``green_ratio_min``，即判为亮灯。白色未亮灯的饱和度
-接近零，不能通过该判据；三个 ROI 中必须恰好有一个通过，否则安全地判为不确定。
+每个灯在 config.yaml 标明 ``color: green/white/red``。绿色和红色灯要求同时满足
+对应 Hue、高饱和度及高亮度；白色灯要求低饱和度和高亮度。红色 LED 在相机过曝
+时可能呈橙/黄，故将 H=0~40 一并归入红灯的亮态范围。
 """
 from __future__ import annotations
 
@@ -20,10 +20,18 @@ class LampDetector:
         self.roi = cfg.roi_radius          # ROI 半径（像素）
         self.green_h_min = cfg.green_h_min
         self.green_h_max = cfg.green_h_max
-        self.green_s_min = cfg.green_s_min
-        self.green_v_min = cfg.green_v_min
-        self.green_ratio_min = cfg.green_ratio_min
+        self.color_s_min = cfg.lamp_color_s_min
+        self.on_v_min = cfg.lamp_on_v_min
+        self.white_s_max = cfg.white_s_max
+        self.red_h_low_max = cfg.red_h_low_max
+        self.red_h_high_min = cfg.red_h_high_min
+        self.on_ratio_min = cfg.lamp_on_ratio_min
         self.diff_max_dist = cfg.diff_max_dist  # 做差判定最大匹配距离（最大判定误差，px）
+
+    @staticmethod
+    def lamp_color(lamp: dict, index: int) -> str:
+        """缺少 color 的旧标定文件按左→右 green/white/red 兼容。"""
+        return str(lamp.get("color", ("green", "white", "red")[index % 3])).lower()
 
     @staticmethod
     def scores(rgb: np.ndarray, lamps: list, default_radius: int) -> list[float]:
@@ -43,25 +51,42 @@ class LampDetector:
 
         return scores
 
-    def green_scores(self, rgb: np.ndarray, lamps: list) -> list[float]:
-        """返回每盏灯 ROI 中通过 HSV 绿色阈值的像素占比（范围 0~1）。"""
+    def lamp_states(self, rgb: np.ndarray, lamps: list) -> list[dict]:
+        """返回三盏灯的颜色、有效像素占比与 ON/OFF 状态。"""
         if not lamps:
             return []
         hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
         h, w = hsv.shape[:2]
-        green = ((hsv[..., 0] >= self.green_h_min) &
-                 (hsv[..., 0] <= self.green_h_max) &
-                 (hsv[..., 1] >= self.green_s_min) &
-                 (hsv[..., 2] >= self.green_v_min))
-        ratios = []
-        for lamp in lamps:
+        states = []
+        for index, lamp in enumerate(lamps):
             cx, cy = int(lamp["cx"]), int(lamp["cy"])
             radius = int(lamp.get("roi_radius", self.roi))
             y0, y1 = max(0, cy - radius), min(h, cy + radius)
             x0, x1 = max(0, cx - radius), min(w, cx + radius)
-            roi = green[y0:y1, x0:x1]
-            ratios.append(float(roi.mean()) if roi.size else 0.0)
-        return ratios
+            roi = hsv[y0:y1, x0:x1]
+            color = self.lamp_color(lamp, index)
+            if not roi.size:
+                ratio = 0.0
+            else:
+                hue, sat, value = roi[..., 0], roi[..., 1], roi[..., 2]
+                if color == "green":
+                    mask = ((hue >= self.green_h_min) & (hue <= self.green_h_max) &
+                            (sat >= self.color_s_min) & (value >= self.on_v_min))
+                elif color == "white":
+                    mask = (sat <= self.white_s_max) & (value >= self.on_v_min)
+                elif color == "red":
+                    mask = (((hue <= self.red_h_low_max) | (hue >= self.red_h_high_min)) &
+                            (sat >= self.color_s_min) & (value >= self.on_v_min))
+                else:
+                    raise ValueError(f"未知灯颜色 {color}，应为 green/white/red")
+                ratio = float(mask.mean())
+            states.append({"index": index, "id": lamp.get("id", index), "color": color,
+                           "ratio": ratio, "on": ratio >= self.on_ratio_min})
+        return states
+
+    def green_scores(self, rgb: np.ndarray, lamps: list) -> list[float]:
+        """兼容旧调用：返回每盏灯按其标称颜色计算的亮态像素占比。"""
+        return [state["ratio"] for state in self.lamp_states(rgb, lamps)]
 
     def detect_lit_index(self, rgb: np.ndarray, lamps: list,
                          baseline: list[float] | None = None) -> int | None:
@@ -69,22 +94,21 @@ class LampDetector:
         if not lamps:
             log.warning("面板文件里没有灯位")
             return None
-        scores = self.green_scores(rgb, lamps)
-        candidates = [index for index, score in enumerate(scores)
-                      if score >= self.green_ratio_min]
+        states = self.lamp_states(rgb, lamps)
+        candidates = [state["index"] for state in states if state["on"]]
         if not candidates:
-            log.warning("无亮灯：绿色像素占比=%s，阈值=%.3f",
-                        [round(score, 3) for score in scores], self.green_ratio_min)
+            log.warning("无亮灯：状态=%s，像素占比阈值=%.3f",
+                        [(state["color"], round(state["ratio"], 3)) for state in states],
+                        self.on_ratio_min)
             return None
         if len(candidates) != 1:
-            log.warning("无法唯一判定亮灯：候选=%s，绿色像素占比=%s，阈值=%.3f",
-                        candidates, [round(score, 3) for score in scores], self.green_ratio_min)
+            log.warning("无法唯一判定亮灯：候选=%s，状态=%s，阈值=%.3f",
+                        candidates, [(state["color"], round(state["ratio"], 3)) for state in states],
+                        self.on_ratio_min)
             return None
         index = candidates[0]
-        log.info("灯 ROI 绿色像素占比=%s（H=%d~%d,S>=%d,V>=%d）→ 亮灯=#%d",
-                 [round(score, 3) for score in scores],
-                 self.green_h_min, self.green_h_max, self.green_s_min,
-                 self.green_v_min, index)
+        log.info("灯状态=%s → 亮灯=#%d", [(state["color"], round(state["ratio"], 3), state["on"])
+                                        for state in states], index)
         return index
 
     @staticmethod

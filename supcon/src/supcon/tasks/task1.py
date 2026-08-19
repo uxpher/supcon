@@ -250,13 +250,17 @@ class Task1Runner:
         h_min, h_max = int(self.cfg.task1.green_h_min), int(self.cfg.task1.green_h_max)
         if not (0 <= h_min <= h_max <= 179):
             raise RuntimeError("task1.green_h_min/green_h_max 必须满足 0 ≤ min ≤ max ≤ 179")
-        for key in ("green_s_min", "green_v_min"):
+        for key in ("lamp_color_s_min", "lamp_on_v_min", "white_s_max"):
             value = int(getattr(self.cfg.task1, key))
             if not 0 <= value <= 255:
                 raise RuntimeError(f"task1.{key} 必须在 0~255")
-        ratio = float(self.cfg.task1.green_ratio_min)
+        red_low = int(self.cfg.task1.red_h_low_max)
+        red_high = int(self.cfg.task1.red_h_high_min)
+        if not (0 <= red_low <= 179 and 0 <= red_high <= 179):
+            raise RuntimeError("task1.red_h_low_max/red_h_high_min 必须在 0~179")
+        ratio = float(self.cfg.task1.lamp_on_ratio_min)
         if not math.isfinite(ratio) or not 0 < ratio <= 1:
-            raise RuntimeError("task1.green_ratio_min 必须在 (0, 1]")
+            raise RuntimeError("task1.lamp_on_ratio_min 必须在 (0, 1]")
         if self.cfg.task1.action_verify not in {"motion_only", "lamp_change"}:
             raise RuntimeError(f"未知 task1.action_verify={self.cfg.task1.action_verify}")
         return safe, observe
@@ -300,6 +304,8 @@ class Task1Runner:
             lamp_ids.add(lamp["id"])
             if lamp.get("switch_id") not in switch_by_id:
                 raise RuntimeError(f"灯 {lamp.get('id')} 指向不存在的 switch_id")
+            if str(lamp.get("color", "")).lower() not in {"green", "white", "red"}:
+                raise RuntimeError(f"灯 {lamp.get('id')} 的 color 必须为 green/white/red")
             try:
                 for key in ("cx", "cy"):
                     value = float(lamp[key])

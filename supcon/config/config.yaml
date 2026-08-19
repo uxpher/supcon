@@ -79,18 +79,22 @@ task1:
     lamps:
       - id: 0
         switch_id: 0
-        cx: 200
-        cy: 240
+        color: green
+        # 基于 src/supcon/task1观察位照片.png 的初始标定；相机位姿变化后请用 03 手动复点。
+        cx: 478
+        cy: 154
         roi_radius: 18
       - id: 1
         switch_id: 1
-        cx: 320
-        cy: 240
+        color: white
+        cx: 748
+        cy: 154
         roi_radius: 18
       - id: 2
         switch_id: 2
-        cx: 440
-        cy: 240
+        color: red
+        cx: 1027
+        cy: 141
         roi_radius: 18
     switches:
       - id: 0
@@ -155,7 +159,7 @@ task1:
   # 安全位→观察位：上层拆成短直线段，避免控制器对一次大距离请求回退 OMPL。
   observe_step_m: 0.010                 # 单段最大平移量（m）
   observe_step_rad: 0.052               # 单段最大姿态变化（rad，约 3°）
-  observe_velocity: 0.03                # 观察路径速度；首次现场验证保持低速
+  observe_velocity: 0.15                # 观察路径速度；首次现场验证保持低速
   observe_pose_tolerance_m: 0.015       # 每段完成后的实际位置允许误差（m）
   observe_pose_tolerance_rad: 0.12      # 每段完成后的实际姿态允许误差（rad）
   pose_settle_timeout_s: 5.0            # 每段指令返回后，等待 /api/pose 反馈到位的最长时间
@@ -170,13 +174,16 @@ task1:
   observe_max_segments: 80              # 防止配置错误导致过多小段运动
   press_dwell_s: 0.3                    # 按压停留时间
   max_retry: 1                          # 亮灯检测失败重试次数
-  # OpenCV HSV 直接阈值：仅 ROI 内同时满足以下颜色阈值的绿色像素才计入亮灯。
-  # 白色未亮灯 S≈0，会被 green_s_min 排除；现场可先从 35/95/80/80/0.10 开始调。
+  # OpenCV HSV 直接阈值：按每个灯的 color（green/white/red）分别判断亮灭。
+  # 红灯过曝时可呈橙/黄，red_h_low_max=40 因而覆盖 H≈30 的实际亮灯。
   green_h_min: 35                       # 绿色 Hue 下限，范围 0~179
   green_h_max: 95                       # 绿色 Hue 上限，范围 0~179
-  green_s_min: 80                       # 最低饱和度，范围 0~255
-  green_v_min: 80                       # 最低亮度，范围 0~255
-  green_ratio_min: 0.10                 # ROI 中绿色有效像素占比达到此值才判定为亮
+  lamp_color_s_min: 80                  # 绿/红灯的最低饱和度，范围 0~255
+  lamp_on_v_min: 160                    # 三类灯亮起的最低亮度，范围 0~255
+  white_s_max: 70                       # 白灯亮起允许的最大饱和度，范围 0~255
+  red_h_low_max: 40                     # 红/橙/黄 Hue 上界，范围 0~179
+  red_h_high_min: 165                   # 深红 Hue 下界，范围 0~179
+  lamp_on_ratio_min: 0.02               # 对应颜色有效像素占比达到此值才判为亮
   roi_radius: 18                        # 灯 ROI 半径（像素）
   diff_max_dist: 250.0                   # 最大判定误差：做差判定时亮斑到灯位中心的最大允许距离（px）
   preview_first_move: true              # 首段运动先 plan_only 预览（示教位姿已在 02 脚本校验过）

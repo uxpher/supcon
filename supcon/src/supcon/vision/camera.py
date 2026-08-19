@@ -84,8 +84,9 @@ class MockCamera(Camera):
 
     def __init__(self, lamps: list | None = None, lit_index: int | None = 0,
                  size: tuple = (640, 480)):
-        self.lamps = lamps or [{"cx": 200, "cy": 240}, {"cx": 320, "cy": 240},
-                               {"cx": 440, "cy": 240}]
+        self.lamps = lamps or [{"cx": 200, "cy": 240, "color": "green"},
+                               {"cx": 320, "cy": 240, "color": "white"},
+                               {"cx": 440, "cy": 240, "color": "red"}]
         self.lit = lit_index
         self.size = size
 
@@ -94,9 +95,10 @@ class MockCamera(Camera):
         img = np.zeros((h, w, 3), np.uint8)
         for i, l in enumerate(self.lamps):
             cx, cy = int(l["cx"]), int(l["cy"])
-            # 亮灯为高饱和绿色，未亮灯为低饱和白色；与真机 Task1 的 HSV
-            # 直接阈值检测一致。
-            color = (0, 255, 0) if i == self.lit else (220, 220, 220)
+            # 亮灯颜色与每个灯的标称色一致；红灯过曝时真实相机可能偏橙黄，
+            # 这里仍用红色验证色相双区间逻辑。
+            lit_colors = {"green": (0, 255, 0), "white": (255, 255, 255), "red": (255, 0, 0)}
+            color = lit_colors.get(str(l.get("color", "green")).lower(), (0, 255, 0)) if i == self.lit else (90, 90, 90)
             cv2.circle(img, (cx, cy), 16, color, -1)
             cv2.circle(img, (cx, cy), 16, (255, 255, 255), 2)
             cv2.rectangle(img, (cx - 10, cy + 28), (cx + 10, cy + 40),
